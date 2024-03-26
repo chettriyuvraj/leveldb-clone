@@ -68,6 +68,19 @@ func (db *LevelDB) Get(key []byte) (val []byte, err error) {
 	return entry.val, nil
 }
 
+/* Wrapper around Get */
+func (db *LevelDB) Has(key []byte) (ret bool, err error) {
+	_, err = db.Get(key)
+	if err != nil {
+		if errors.Is(err, ErrKeyDoesNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (db *LevelDB) Put(key, val []byte) error {
 	entry, _, err := db.getDBEntry(key)
 	if err != nil {
