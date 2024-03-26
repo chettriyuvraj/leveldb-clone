@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,5 +48,58 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Get(k1)
 	require.ErrorIs(t, err, ErrKeyDoesNotExist)
+}
 
+func TestLevelDBIteratorNext(t *testing.T) {
+	db := NewLevelDB()
+	iterator := NewLevelDBIterator(db)
+	iterations := 10
+
+	/* Test Empty Iterator */
+	exists, err := iterator.Next(), iterator.Error()
+	require.NoError(t, err)
+	require.False(t, exists)
+	keyGot, err := iterator.Key(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, keyGot)
+	valGot, err := iterator.Value(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, valGot)
+
+	/* Populate db */
+	for i := 0; i < iterations; i++ {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := db.Put(k, v)
+		require.NoError(t, err)
+	}
+
+	/* Move iterator over all values and check that they exist + are correct + no errors */
+	for i := 0; i < iterations; i++ {
+		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		keyGot, err := iterator.Key(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, keyExpected, keyGot)
+		valGot, err := iterator.Value(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, valExpected, valGot)
+
+		nextExists, err := iterator.Next(), iterator.Error()
+		require.NoError(t, err)
+		if i < iterations-1 {
+			require.True(t, nextExists)
+		} else {
+			require.False(t, nextExists)
+		}
+	}
+
+	/* After all values are exhausted 1st two checks already tested in last iteration of loop, just keeping both checks to be consistent */
+	exists, err = iterator.Next(), iterator.Error()
+	require.NoError(t, err)
+	require.False(t, exists)
+	keyGot, err = iterator.Key(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, keyGot)
+	valGot, err = iterator.Value(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, valGot)
 }

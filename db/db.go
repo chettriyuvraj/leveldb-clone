@@ -42,6 +42,13 @@ type DB interface {
 }
 
 var ErrKeyDoesNotExist = errors.New("this key does not exist")
+var ErrIdxOutOfBounds = errors.New("this key does not exist")
+
+type LevelDBIterator struct {
+	*LevelDB
+	err error
+	idx int
+}
 
 type DBEntry struct {
 	key, val []byte
@@ -114,4 +121,59 @@ func (db *LevelDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
 	}
 
 	return nil, -1, ErrKeyDoesNotExist
+}
+
+func (db *LevelDB) getDBEntryByIdx(idx int) (entry *DBEntry, err error) {
+	if idx < 0 || idx >= len(db.entries) {
+		return nil, ErrIdxOutOfBounds
+	}
+
+	return db.entries[idx], nil
+}
+
+func NewLevelDBIterator(db *LevelDB) *LevelDBIterator {
+	return &LevelDBIterator{LevelDB: db, idx: 0}
+}
+
+func (iter *LevelDBIterator) Next() bool {
+	if iter.idx >= len(iter.entries) {
+		return false
+	}
+
+	iter.idx++
+	/* If we moved from last index to out of bounds */
+	if iter.idx == len(iter.entries) {
+		return false
+	}
+	return true
+}
+
+func (iter *LevelDBIterator) Error() error {
+	return iter.err
+}
+
+func (iter *LevelDBIterator) Key() []byte {
+	entry, err := iter.getDBEntryByIdx(iter.idx)
+	if err != nil {
+		if errors.Is(err, ErrIdxOutOfBounds) {
+			return []byte{}
+		}
+		iter.err = err
+		return []byte{}
+	}
+
+	return entry.key
+}
+
+func (iter *LevelDBIterator) Value() []byte {
+	entry, err := iter.getDBEntryByIdx(iter.idx)
+	if err != nil {
+		if errors.Is(err, ErrIdxOutOfBounds) {
+			return []byte{}
+		}
+		iter.err = err
+		return []byte{}
+	}
+
+	return entry.val
 }
