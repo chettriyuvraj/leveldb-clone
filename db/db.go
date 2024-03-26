@@ -60,32 +60,45 @@ func newDBEntry(key, val []byte) *DBEntry {
 }
 
 func (db *LevelDB) Get(key []byte) (val []byte, err error) {
-	entry, err := db.getDBEntry(key)
-	if errors.Is(err, ErrKeyDoesNotExist) {
-		return []byte{}, ErrKeyDoesNotExist
+	entry, _, err := db.getDBEntry(key)
+	if err != nil {
+		return []byte{}, err
 	}
 
 	return entry.val, nil
 }
 
 func (db *LevelDB) Put(key, val []byte) error {
-	entry, err := db.getDBEntry(key)
-	if errors.Is(err, ErrKeyDoesNotExist) {
-		dbEntry := newDBEntry(key, val)
-		db.entries = append(db.entries, dbEntry)
-		return nil
+	entry, _, err := db.getDBEntry(key)
+	if err != nil {
+		if errors.Is(err, ErrKeyDoesNotExist) {
+			dbEntry := newDBEntry(key, val)
+			db.entries = append(db.entries, dbEntry)
+			return nil
+		}
+		return err
 	}
 
 	entry.val = val
 	return nil
 }
 
-func (db *LevelDB) getDBEntry(key []byte) (*DBEntry, error) {
-	for _, entry := range db.entries {
+func (db *LevelDB) Delete(key []byte) error {
+	_, i, err := db.getDBEntry(key)
+	if err != nil {
+		return err
+	}
+
+	db.entries = append(db.entries[:i], db.entries[i+1:]...)
+	return nil
+}
+
+func (db *LevelDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
+	for i, entry := range db.entries {
 		if bytes.Equal(key, entry.key) {
-			return entry, nil
+			return entry, i, nil
 		}
 	}
 
-	return nil, ErrKeyDoesNotExist
+	return nil, -1, ErrKeyDoesNotExist
 }
