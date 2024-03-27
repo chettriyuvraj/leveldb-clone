@@ -115,3 +115,77 @@ func TestLevelDBIteratorNext(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, valGot)
 }
+
+func TestRangeScan(t *testing.T) {
+	db := NewLevelDB()
+	iterations := 9
+	for i := iterations; i >= 0; i -= 2 {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := db.Put(k, v)
+		require.NoError(t, err)
+	}
+
+	/* Check exact ranges - also confirm once values exhausted */
+	start, end := []byte("key1"), []byte("key9")
+	iterator, err := db.RangeScan(start, end)
+	require.NoError(t, err)
+	for i := 1; i <= 9; i += 2 {
+		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		keyGot, err := iterator.Key(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, keyExpected, keyGot)
+		valGot, err := iterator.Value(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, valExpected, valGot)
+
+		nextExists, err := iterator.Next(), iterator.Error()
+		require.NoError(t, err)
+		if i < 9 {
+			require.True(t, nextExists)
+		} else {
+			require.False(t, nextExists)
+		}
+	}
+
+	exists, err := iterator.Next(), iterator.Error()
+	require.NoError(t, err)
+	require.False(t, exists)
+	keyGot, err := iterator.Key(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, keyGot)
+	valGot, err := iterator.Value(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, valGot)
+
+	/* Check inexact ranges - also confirm once values exhausted */
+	start, end = []byte("key"), []byte("key8")
+	iterator, err = db.RangeScan(start, end)
+	require.NoError(t, err)
+	for i := 1; i <= 7; i += 2 {
+		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		keyGot, err := iterator.Key(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, keyExpected, keyGot)
+		valGot, err := iterator.Value(), iterator.Error()
+		require.NoError(t, err)
+		require.Equal(t, valExpected, valGot)
+
+		nextExists, err := iterator.Next(), iterator.Error()
+		require.NoError(t, err)
+		if i < 7 {
+			require.True(t, nextExists)
+		} else {
+			require.False(t, nextExists)
+		}
+	}
+
+	exists, err = iterator.Next(), iterator.Error()
+	require.NoError(t, err)
+	require.False(t, exists)
+	keyGot, err = iterator.Key(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, keyGot)
+	valGot, err = iterator.Value(), iterator.Error()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, valGot)
+}

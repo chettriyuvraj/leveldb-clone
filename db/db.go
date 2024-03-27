@@ -43,7 +43,8 @@ type DB interface {
 }
 
 var ErrKeyDoesNotExist = errors.New("this key does not exist")
-var ErrIdxOutOfBounds = errors.New("this key does not exist")
+var ErrIdxOutOfBounds = errors.New("index out of bounds")
+var ErrInvalidRange = errors.New("range is invalid")
 
 type LevelDBIterator struct {
 	*LevelDB
@@ -113,6 +114,42 @@ func (db *LevelDB) Delete(key []byte) error {
 
 	db.entries = append(db.entries[:i], db.entries[i+1:]...)
 	return nil
+}
+
+/* s = k2, k6; k1, k3, k4 , k5, k7 */
+
+func (db *LevelDB) RangeScan(start, limit []byte) (Iterator, error) {
+	if bytes.Compare(start, limit) > 0 {
+		return nil, ErrInvalidRange
+	}
+
+	startIdx, endIdx := 0, len(db.entries)
+	startFound, endFound := false, false
+	iter := NewLevelDBIterator(NewLevelDB())
+	for i := 0; i < len(db.entries) && !(startFound && endFound); i++ {
+
+		if !startFound {
+			cmp := bytes.Compare(start, db.entries[i].key)
+			if cmp == 0 || cmp < 0 {
+				startIdx = i
+				startFound = true
+			}
+		} else {
+			cmp := bytes.Compare(limit, db.entries[i].key)
+			if cmp == 0 {
+				endIdx = i + 1
+				endFound = true
+			} else if cmp < 0 {
+				endIdx = i
+				endFound = true
+			}
+		}
+	}
+
+	if startFound {
+		iter.entries = db.entries[startIdx:endIdx]
+	}
+	return iter, nil
 }
 
 func (db *LevelDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
