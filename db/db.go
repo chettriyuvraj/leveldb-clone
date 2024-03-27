@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"errors"
+	"sort"
 )
 
 type Iterator interface {
@@ -94,6 +95,7 @@ func (db *LevelDB) Put(key, val []byte) error {
 		if errors.Is(err, ErrKeyDoesNotExist) {
 			dbEntry := newDBEntry(key, val)
 			db.entries = append(db.entries, dbEntry)
+			sort.Sort(DBEntrySlice(db.entries))
 			return nil
 		}
 		return err
@@ -177,3 +179,10 @@ func (iter *LevelDBIterator) Value() []byte {
 
 	return entry.val
 }
+
+/* Make []DBEntry into interface 'sort.Interface' */
+type DBEntrySlice []*DBEntry
+
+func (dbe DBEntrySlice) Len() int           { return len(dbe) }
+func (dbe DBEntrySlice) Swap(i, j int)      { dbe[i], dbe[j] = dbe[j], dbe[i] }
+func (dbe DBEntrySlice) Less(i, j int) bool { return bytes.Compare(dbe[i].key, dbe[j].key) == -1 }

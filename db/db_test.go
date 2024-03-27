@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,17 @@ func TestGetPut(t *testing.T) {
 	v2FromDB, err := db.Get(k1)
 	require.NoError(t, err)
 	require.Equal(t, v2, v2FromDB)
+}
+
+func TestPutSorted(t *testing.T) {
+	db := NewLevelDB()
+	iterations := 10
+	for i := iterations; i >= 0; i-- {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := db.Put(k, v)
+		require.NoError(t, err)
+		require.True(t, sort.IsSorted(DBEntrySlice(db.entries)))
+	}
 }
 
 func TestDelete(t *testing.T) {
