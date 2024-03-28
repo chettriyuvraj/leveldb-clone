@@ -206,7 +206,8 @@ func benchmarkGet(b *testing.B, dbSize int) {
 	db := NewLevelDB()
 	for i := 0; i < dbSize; i++ {
 		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		db.Put(k, v)
+		err := db.Put(k, v)
+		require.NoError(b, err)
 	}
 
 	r := rand.New(rand.NewSource(500))
@@ -225,7 +226,8 @@ func benchmarkGet(b *testing.B, dbSize int) {
 		b.Run(bm.name, func(b *testing.B) {
 			for i := 0; i < bm.size; i++ {
 				k := []byte(fmt.Sprintf("key%d", r.Intn(dbSize)))
-				db.Get(k)
+				_, err := db.Get(k)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -241,4 +243,55 @@ func BenchmarkGetFromTenThousand(b *testing.B) {
 
 // func BenchmarkGetFromHundredThousand(b *testing.B) {
 // 	benchmarkGet(b, 100000)
+// }
+
+func benchmarkDelete(b *testing.B, dbSize int) {
+
+	bms := []struct {
+		name string
+		size int
+	}{
+		{name: "Hundred", size: 100},
+		{name: "Thousand", size: 1000},
+		{name: "TenThousand", size: 10000},
+		// {name: "HundredThousand", size: 100000},
+		// {name: "Million", size: 100000},
+	}
+	for _, bm := range bms {
+
+		if bm.size > dbSize {
+			b.Skip()
+		}
+
+		b.Run(bm.name, func(b *testing.B) {
+
+			/* Each bm is run multiple times, so db needs to be repopulated for deletions each time - using ResetTimer to ignore setup cost */
+			db := NewLevelDB()
+			for i := 0; i < dbSize; i++ {
+				k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+				err := db.Put(k, v)
+				require.NoError(b, err)
+			}
+
+			/* Deletions are done in order, results for random deletes would be different */
+			b.ResetTimer()
+			for i := 0; i < bm.size; i++ {
+				k := []byte(fmt.Sprintf("key%d", i))
+				err := db.Delete(k)
+				require.NoError(b, err)
+			}
+		})
+	}
+}
+
+func BenchmarkDeleteFromThousand(b *testing.B) {
+	benchmarkDelete(b, 1000)
+}
+
+func BenchmarkDeleteFromTenThousand(b *testing.B) {
+	benchmarkDelete(b, 10000)
+}
+
+// func BenchmarkDeleteFromHundredThousand(b *testing.B) {
+// 	benchmarkDelete(b, 100000)
 // }
