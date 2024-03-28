@@ -9,6 +9,7 @@ import (
 )
 
 var ErrInvalidNodeLevel = errors.New("invalid node level")
+var ErrNodeDoesNotExist = errors.New("node does not exist")
 
 type Node struct {
 	key, val []byte
@@ -69,13 +70,13 @@ func (sl *SkipList) Search(key []byte) *Node {
 	/* First search for the insertion spot using a dummy search node with the same key*/
 	node, dummySearchNode := sl.head, NewNode(key, []byte{})
 	for i := sl.level; i > 0; i-- {
-		for sl.compare(node.forward[i], dummySearchNode) < 0 { /* As long as node's key is less than forward[i] */
+		for sl.compareKey(node.forward[i], dummySearchNode) < 0 { /* As long as node's key is less than forward[i] */
 			node = node.forward[i]
 		}
 	}
 
 	nodeAhead := node.forward[1]
-	if sl.compare(dummySearchNode, nodeAhead) == 0 {
+	if sl.compareKey(dummySearchNode, nodeAhead) == 0 {
 		return nodeAhead
 	}
 	return nil
@@ -91,7 +92,7 @@ func (sl *SkipList) Insert(key, val []byte) error {
 
 	/* First search for the insertion spot */
 	for i := sl.level; i > 0; i-- {
-		for sl.compare(node.forward[i], newNode) < 0 { /* As long as node.forward[i] is less than search key */
+		for sl.compareKey(node.forward[i], newNode) < 0 { /* As long as node.forward[i] is less than search key */
 			node = node.forward[i]
 		}
 		updateList[i] = node
@@ -99,7 +100,7 @@ func (sl *SkipList) Insert(key, val []byte) error {
 
 	/* If key already exists, simply update value */
 	nodeAhead := node.forward[1]
-	if sl.compare(newNode, nodeAhead) == 0 {
+	if sl.compareKey(newNode, nodeAhead) == 0 {
 		nodeAhead.val = val
 		return nil
 	}
@@ -121,10 +122,49 @@ func (sl *SkipList) Insert(key, val []byte) error {
 	return nil
 }
 
+func (sl *SkipList) Delete(key []byte) error {
+	/* Init */
+	node, dummySearchNode := sl.head, NewNode(key, []byte{})
+	updateList := []*Node{NewNode([]byte{}, []byte{})} /* update list is 1-indexed, so 0th node is a dummy node */
+	for i := 1; i <= sl.maxLevel; i++ {
+		updateList = append(updateList, NewNode([]byte{}, []byte{}))
+	}
+
+	/* First search for the insertion spot */
+	for i := sl.level; i > 0; i-- {
+		for sl.compareKey(node.forward[i], dummySearchNode) < 0 { /* As long as node.forward[i] is less than search key */
+			node = node.forward[i]
+		}
+		updateList[i] = node
+	}
+
+	/* If key doesn't exists */
+	nodeAhead := node.forward[1]
+	if sl.compareKey(dummySearchNode, nodeAhead) != 0 {
+		return ErrNodeDoesNotExist
+	}
+
+	/* Else delete node and modify level if level changed */
+	for i := 1; i <= sl.level; i++ {
+		if updateList[i].forward[i] != nodeAhead {
+			break
+		}
+		updateList[i].forward[i] = nodeAhead.forward[i]
+	}
+
+	for sl.level > 1 && sl.head.forward[sl.level] == sl.nil {
+		sl.level--
+	}
+
+	return nil
+
+}
+
 /*
-- Handles comparison for 'nil' element in skiplist gracefully - use this for comparison ops in search/insert/delete
+- Compares skiplist nodes WRT key (one node must be 'newNode' that is being searched for/deleted/inserted in skip list)
+- We use a separate method as this handles comparison for 'nil' element in skiplist gracefully - use this for comparison ops in search/insert/delete
 */
-func (sl *SkipList) compare(n1, n2 *Node) int {
+func (sl *SkipList) compareKey(n1, n2 *Node) int {
 	if n1 == n2 {
 		return 0
 	}

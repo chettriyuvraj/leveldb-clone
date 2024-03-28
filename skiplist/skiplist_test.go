@@ -35,13 +35,36 @@ func TestInsertAndSearch(t *testing.T) {
 	node := skiplist.Search(existingKey)
 	require.Equal(t, existingKey, node.key)
 	require.Equal(t, newVal, node.val)
+}
+
+func TestDelete(t *testing.T) {
+	skiplist := NewSkipList(0.5, 16)
+
+	err := skiplist.Delete([]byte("key22"))
+	require.ErrorIs(t, ErrNodeDoesNotExist, err)
+
+	for i := 1; i < 10; i++ {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := skiplist.Insert(k, v)
+		require.NoError(t, err)
+	}
+
+	randomIdxs := []int{7, 2, 4, 1, 3, 5, 9, 6, 8}
+	for i := 0; i < len(randomIdxs); i++ {
+		randomIdx := randomIdxs[i]
+		k := []byte(fmt.Sprintf("key%d", randomIdx))
+		err := skiplist.Delete(k)
+		require.NoError(t, err)
+		require.NoError(t, skiplist.isValid(t))
+		require.True(t, skiplist.isSorted(t))
+	}
 
 }
 
 func (sl *SkipList) isSorted(t *testing.T) bool {
 	t.Helper()
 	for curNode, prevNode := sl.head, sl.head; curNode != sl.nil; prevNode, curNode = curNode, curNode.forward[1] {
-		if curNode != prevNode && sl.compare(curNode, prevNode) < 0 {
+		if curNode != prevNode && sl.compareKey(curNode, prevNode) < 0 {
 			return false
 		}
 	}
