@@ -116,8 +116,6 @@ func (db *LevelDB) Delete(key []byte) error {
 	return nil
 }
 
-/* s = k2, k6; k1, k3, k4 , k5, k7 */
-
 func (db *LevelDB) RangeScan(start, limit []byte) (Iterator, error) {
 	if bytes.Compare(start, limit) > 0 {
 		return nil, ErrInvalidRange
