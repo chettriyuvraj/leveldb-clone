@@ -2,6 +2,7 @@ package naiveleveldb
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 	"testing"
 
@@ -177,3 +178,67 @@ func iteratorTestVal(t *testing.T, iterator Iterator, valWant []byte, errWant bo
 		require.NoError(t, err)
 	}
 }
+
+func BenchmarkPut(b *testing.B) {
+	bms := []struct {
+		name string
+		size int
+	}{
+		{name: "Hundred", size: 100},
+		{name: "Thousand", size: 1000},
+		{name: "TenThousand", size: 10000},
+		// {name: "HundredThousand", size: 100000},
+		// {name: "Million", size: 100000},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			db := NewLevelDB()
+			for i := 0; i < bm.size; i++ {
+				k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+				db.Put(k, v)
+			}
+		})
+	}
+}
+
+func benchmarkGet(b *testing.B, dbSize int) {
+	/* Populate KV store */
+	db := NewLevelDB()
+	for i := 0; i < dbSize; i++ {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		db.Put(k, v)
+	}
+
+	r := rand.New(rand.NewSource(500))
+
+	bms := []struct {
+		name string
+		size int
+	}{
+		{name: "Hundred", size: 100},
+		{name: "Thousand", size: 1000},
+		{name: "TenThousand", size: 10000},
+		// {name: "HundredThousand", size: 100000},
+		// {name: "Million", size: 100000},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < bm.size; i++ {
+				k := []byte(fmt.Sprintf("key%d", r.Intn(dbSize)))
+				db.Get(k)
+			}
+		})
+	}
+}
+
+func BenchmarkGetFromThousand(b *testing.B) {
+	benchmarkGet(b, 1000)
+}
+
+func BenchmarkGetFromTenThousand(b *testing.B) {
+	benchmarkGet(b, 10000)
+}
+
+// func BenchmarkGetFromHundredThousand(b *testing.B) {
+// 	benchmarkGet(b, 100000)
+// }
