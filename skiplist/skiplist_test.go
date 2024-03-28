@@ -11,11 +11,30 @@ func TestInsertAndSearch(t *testing.T) {
 	skiplist := NewSkipList(0.5, 16)
 
 	for i := 1; i < 10; i++ {
-		k := []byte(fmt.Sprintf("%d", i))
-		require.NoError(t, skiplist.Insert(k))
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		/* Try searching before insert */
+		node := skiplist.Search(k)
+		require.Nil(t, node)
+
+		/* Validate skiplist properties after insert */
+		require.NoError(t, skiplist.Insert(k, v))
 		require.NoError(t, skiplist.isValid(t))
 		require.True(t, skiplist.isSorted(t))
+
+		/* Try searching after insert */
+		node = skiplist.Search(k)
+		require.Equal(t, k, node.key)
+		require.Equal(t, v, node.val)
 	}
+
+	/* Insert into a pre-existing node and check if val has changed correctly */
+	existingKey, newVal := []byte("key5"), []byte("val6439")
+	require.NoError(t, skiplist.Insert(existingKey, newVal))
+	require.NoError(t, skiplist.isValid(t))
+	require.True(t, skiplist.isSorted(t))
+	node := skiplist.Search(existingKey)
+	require.Equal(t, existingKey, node.key)
+	require.Equal(t, newVal, node.val)
 
 }
 
