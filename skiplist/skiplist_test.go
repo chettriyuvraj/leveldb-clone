@@ -13,8 +13,6 @@ func TestInsertAndSearch(t *testing.T) {
 	for i := 1; i < 10; i++ {
 		k := []byte(fmt.Sprintf("%d", i))
 		require.NoError(t, skiplist.Insert(k))
-		fmt.Printf("Skiplist after iteration %d\n\n", i)
-		fmt.Println(skiplist)
 		require.NoError(t, skiplist.isValid(t))
 		require.True(t, skiplist.isSorted(t))
 	}
