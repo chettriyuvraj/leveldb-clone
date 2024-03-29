@@ -10,18 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDB(t *testing.T) {
-	test.TestDB(t, test.DBTester{New: NewLevelDBAsInterface})
-	test.TestIterator(t, test.IteratorTester{New: NewLevelDBIteratorAsInterface}, test.DBTester{New: NewLevelDBAsInterface})
-}
-
 /* Workaround done exclusively to match signature with test suite */
-func NewLevelDBAsInterface() common.DB {
+func newLevelDBAsInterface() common.DB {
 	return &LevelDB{entries: []*DBEntry{}}
 }
 
-func NewLevelDBIteratorAsInterface(db common.DB) common.Iterator {
+func newLevelDBIteratorAsInterface(db common.DB) common.Iterator {
 	return &LevelDBIterator{LevelDB: db.(*LevelDB), idx: 0}
+}
+
+func TestDB(t *testing.T) {
+	test.TestDB(t, test.DBTester{New: newLevelDBAsInterface})
+	test.TestIterator(t, test.IteratorTester{New: newLevelDBIteratorAsInterface}, test.DBTester{New: newLevelDBAsInterface})
+}
+
+func BenchmarkDB(b *testing.B) {
+	test.BenchmarkDB(b, test.DBTester{New: newLevelDBAsInterface})
 }
 
 /* This is an implementation-specific test, hence not exported to global test suite */
