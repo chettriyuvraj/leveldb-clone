@@ -38,6 +38,23 @@ type DBTester struct {
 	New func() DB
 }
 
+func TestDB(t *testing.T, tester DBTester) {
+	tcs := []struct {
+		name string
+		f    func(t *testing.T, tester DBTester)
+	}{
+		{"TestGetPut", TestGetPut},
+		{"TestDelete", TestDelete},
+		{"TestRangeScan", TestRangeScan},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.f(t, tester)
+		})
+	}
+}
+
 func TestGetPut(t *testing.T, tester DBTester) {
 	db := tester.New()
 
