@@ -41,7 +41,7 @@ func TestDelete(t *testing.T) {
 	skiplist := NewSkipList(0.5, 16)
 
 	err := skiplist.Delete([]byte("key22"))
-	require.ErrorIs(t, ErrNodeDoesNotExist, err)
+	require.ErrorIs(t, ErrKeyDoesNotExist, err)
 
 	for i := 1; i < 10; i++ {
 		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))

@@ -9,7 +9,7 @@ import (
 )
 
 var ErrInvalidNodeLevel = errors.New("invalid node level")
-var ErrNodeDoesNotExist = errors.New("node does not exist")
+var ErrKeyDoesNotExist = errors.New("key does not exist")
 
 type Node struct {
 	key, val []byte
@@ -47,6 +47,20 @@ func (node *Node) String() string {
 		sb.WriteString(fmt.Sprintf("\nLevel %d: %s\n", i, string(node.forward[i].key)))
 	}
 	return sb.String()
+}
+
+func (node *Node) Key() []byte {
+	if node != nil {
+		return node.key
+	}
+	return []byte{}
+}
+
+func (node *Node) Val() []byte {
+	if node != nil {
+		return node.val
+	}
+	return []byte{}
 }
 
 /*
@@ -141,7 +155,7 @@ func (sl *SkipList) Delete(key []byte) error {
 	/* If key doesn't exists */
 	nodeAhead := node.forward[1]
 	if sl.compareKey(dummySearchNode, nodeAhead) != 0 {
-		return ErrNodeDoesNotExist
+		return ErrKeyDoesNotExist
 	}
 
 	/* Else delete node and modify level if level changed */
