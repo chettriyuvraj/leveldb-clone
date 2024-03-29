@@ -4,27 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/stretchr/testify/require"
 )
 
-type Iterator interface {
-	// Next moves the iterator to the next key/value pair.
-	// It returns false if the iterator is exhausted.
-	Next() bool
-
-	// Error returns any accumulated error. Exhausting all the key/value pairs
-	// is not considered to be an error.
-	Error() error
-
-	// Key returns the key of the current key/value pair, or nil if done.
-	Key() []byte
-
-	// Value returns the value of the current key/value pair, or nil if done.
-	Value() []byte
-}
-
 type IteratorTester struct {
-	New func(DB) Iterator
+	New func(common.DB) common.Iterator
 }
 
 func TestIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester) {
@@ -63,7 +48,7 @@ func TestIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester
 }
 
 /* NOTE: This will potentially modify the iterator by calling Next() */
-func iteratorTestNext(t *testing.T, iterator Iterator, existsWant bool, errWant bool) {
+func iteratorTestNext(t *testing.T, iterator common.Iterator, existsWant bool, errWant bool) {
 	t.Helper()
 	exists, err := iterator.Next(), iterator.Error()
 	require.Equal(t, existsWant, exists)
@@ -74,7 +59,7 @@ func iteratorTestNext(t *testing.T, iterator Iterator, existsWant bool, errWant 
 	}
 }
 
-func iteratorTestKey(t *testing.T, iterator Iterator, keyWant []byte, errWant bool) {
+func iteratorTestKey(t *testing.T, iterator common.Iterator, keyWant []byte, errWant bool) {
 	t.Helper()
 	keyGot, err := iterator.Key(), iterator.Error()
 	require.Equal(t, keyWant, keyGot)
@@ -85,7 +70,7 @@ func iteratorTestKey(t *testing.T, iterator Iterator, keyWant []byte, errWant bo
 	}
 }
 
-func iteratorTestVal(t *testing.T, iterator Iterator, valWant []byte, errWant bool) {
+func iteratorTestVal(t *testing.T, iterator common.Iterator, valWant []byte, errWant bool) {
 	t.Helper()
 	t.Helper()
 	valGot, err := iterator.Value(), iterator.Error()

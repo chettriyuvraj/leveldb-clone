@@ -1,41 +1,16 @@
 package test
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
 
+	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/stretchr/testify/require"
 )
 
-var ErrKeyDoesNotExist = errors.New("this key does not exist")
-var ErrIdxOutOfBounds = errors.New("index out of bounds")
-var ErrInvalidRange = errors.New("range is invalid")
-
-type DB interface {
-
-	// Get gets the value for the given key. It returns an error if the
-	// DB does not contain the key.
-	Get(key []byte) (value []byte, err error)
-
-	// Has returns true if the DB contains the given key.
-	Has(key []byte) (ret bool, err error)
-
-	// Put sets the value for the given key. It overwrites any previous value
-	// for that key; a DB is not a multi-map.
-	Put(key, value []byte) error
-
-	// Delete deletes the value for the given key.
-	Delete(key []byte) error
-
-	// RangeScan returns an Iterator (see below) for scanning through all
-	// key-value pairs in the given range, ordered by key ascending.
-	RangeScan(start, limit []byte) (Iterator, error)
-}
-
 type DBTester struct {
-	New func() DB
+	New func() common.DB
 }
 
 func TestDB(t *testing.T, tester DBTester) {
@@ -61,7 +36,7 @@ func TestGetPut(t *testing.T, tester DBTester) {
 	/* Get-Put a non existing key */
 	keyNonExistent := []byte("kNE")
 	_, err := db.Get(keyNonExistent)
-	require.ErrorIs(t, err, ErrKeyDoesNotExist)
+	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
 
 	/* Get-Put a new key-value pair */
 	k1, v1 := []byte("key1"), []byte("val1")
@@ -86,7 +61,7 @@ func TestDelete(t *testing.T, tester DBTester) {
 	/* Delete non-existent key */
 	keyNonExistent := []byte("kNE")
 	err := db.Delete(keyNonExistent)
-	require.ErrorIs(t, err, ErrKeyDoesNotExist)
+	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
 
 	/* Delete existing key */
 	k1, v1 := []byte("key1"), []byte("val1")
@@ -95,7 +70,7 @@ func TestDelete(t *testing.T, tester DBTester) {
 	err = db.Delete(k1)
 	require.NoError(t, err)
 	_, err = db.Get(k1)
-	require.ErrorIs(t, err, ErrKeyDoesNotExist)
+	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
 }
 
 func TestRangeScan(t *testing.T, tester DBTester) {
