@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+/* TODO: Range Scan benchmarks */
+
 type DBTester struct {
 	New func() common.DB
 }
@@ -18,9 +20,9 @@ func TestDB(t *testing.T, tester DBTester) {
 		name string
 		f    func(t *testing.T, tester DBTester)
 	}{
-		{"TestGetPut", TestGetPut},
-		{"TestDelete", TestDelete},
-		{"TestRangeScan", TestRangeScan},
+		{"testGetPut", testGetPut},
+		{"testDelete", testDelete},
+		{"testRangeScan", testRangeScan},
 	}
 
 	for _, tc := range tcs {
@@ -30,7 +32,38 @@ func TestDB(t *testing.T, tester DBTester) {
 	}
 }
 
-func TestGetPut(t *testing.T, tester DBTester) {
+func TestIterator(t *testing.T, testerIter IteratorTester, testerDB DBTester) {
+	tcs := []struct {
+		name string
+		f    func(t *testing.T, tester IteratorTester, testerDB DBTester)
+	}{
+		{"TestIteratorNext", testIteratorNext},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.f(t, testerIter, testerDB)
+		})
+	}
+}
+
+func BenchmarkDB(b *testing.B, tester DBTester) {
+	bms := []struct {
+		name string
+		f    func(b *testing.B, tester DBTester)
+	}{
+		{name: "benchmarkPut", f: benchmarkPut},
+		{name: "benchmarkGet", f: benchmarkGet},
+		{name: "benchmarkDelete", f: benchmarkDelete},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			bm.f(b, tester)
+		})
+	}
+}
+
+func testGetPut(t *testing.T, tester DBTester) {
 	db := tester.New()
 
 	/* Get-Put a non existing key */
@@ -55,7 +88,7 @@ func TestGetPut(t *testing.T, tester DBTester) {
 	require.Equal(t, v2, v2FromDB)
 }
 
-func TestDelete(t *testing.T, tester DBTester) {
+func testDelete(t *testing.T, tester DBTester) {
 	db := tester.New()
 
 	/* Delete non-existent key */
@@ -73,7 +106,7 @@ func TestDelete(t *testing.T, tester DBTester) {
 	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
 }
 
-func TestRangeScan(t *testing.T, tester DBTester) {
+func testRangeScan(t *testing.T, tester DBTester) {
 	db := tester.New()
 	iterations := 9
 	for i := iterations; i >= 0; i -= 2 {
@@ -119,7 +152,7 @@ func TestRangeScan(t *testing.T, tester DBTester) {
 	iteratorTestVal(t, iterator, []byte{}, false)
 }
 
-func BenchmarkPut(b *testing.B, tester DBTester) {
+func benchmarkPut(b *testing.B, tester DBTester) {
 	bms := []struct {
 		name string
 		size int
@@ -140,23 +173,82 @@ func BenchmarkPut(b *testing.B, tester DBTester) {
 	}
 }
 
-func BenchmarkGetFromThousand(b *testing.B, tester DBTester) {
-	benchmarkGet(b, tester, 1000)
+func benchmarkGet(b *testing.B, tester DBTester) {
+	benchmarkGetFromThousand := func(b *testing.B, tester DBTester) {
+		benchmarkGetHelper(b, tester, 1000)
+	}
+	benchmarkGetFromTenThousand := func(b *testing.B, tester DBTester) {
+		benchmarkGetHelper(b, tester, 10000)
+	}
+
+	bms := []struct {
+		name string
+		f    func(b *testing.B, tester DBTester)
+	}{
+		{name: "DBSize:Thousand", f: benchmarkGetFromThousand},
+		{name: "DBSize:Ten-Thousand", f: benchmarkGetFromTenThousand},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			bm.f(b, tester)
+		})
+	}
 }
 
-func BenchmarkGetFromTenThousand(b *testing.B, tester DBTester) {
-	benchmarkGet(b, tester, 10000)
+func benchmarkGetHelper(b *testing.B, tester DBTester, dbSize int) {
+	/* Populate KV store */
+	db := tester.New()
+	for i := 0; i < dbSize; i++ {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := db.Put(k, v)
+		require.NoError(b, err)
+	}
+
+	r := rand.New(rand.NewSource(500))
+
+	bms := []struct {
+		name string
+		size int
+	}{
+		{name: "Hundred", size: 100},
+		{name: "Thousand", size: 1000},
+		{name: "TenThousand", size: 10000},
+		{name: "HundredThousand", size: 100000},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < bm.size; i++ {
+				k := []byte(fmt.Sprintf("key%d", r.Intn(dbSize)))
+				_, err := db.Get(k)
+				require.NoError(b, err)
+			}
+		})
+	}
 }
 
-func BenchmarkDeleteFromThousand(b *testing.B, tester DBTester) {
-	benchmarkDelete(b, tester, 1000)
+func benchmarkDelete(b *testing.B, tester DBTester) {
+	benchmarkDeleteFromThousand := func(b *testing.B, tester DBTester) {
+		benchmarkDeleteHelper(b, tester, 1000)
+	}
+	benchmarkDeleteFromTenThousand := func(b *testing.B, tester DBTester) {
+		benchmarkDeleteHelper(b, tester, 10000)
+	}
+
+	bms := []struct {
+		name string
+		f    func(b *testing.B, tester DBTester)
+	}{
+		{name: "DBSize:Thousand", f: benchmarkDeleteFromThousand},
+		{name: "DBSize:Ten-Thousand", f: benchmarkDeleteFromTenThousand},
+	}
+	for _, bm := range bms {
+		b.Run(bm.name, func(b *testing.B) {
+			bm.f(b, tester)
+		})
+	}
 }
 
-func BenchmarkDeleteFromTenThousand(b *testing.B, tester DBTester) {
-	benchmarkDelete(b, tester, 10000)
-}
-
-func benchmarkDelete(b *testing.B, tester DBTester, dbSize int) {
+func benchmarkDeleteHelper(b *testing.B, tester DBTester, dbSize int) {
 
 	bms := []struct {
 		name string
@@ -188,37 +280,6 @@ func benchmarkDelete(b *testing.B, tester DBTester, dbSize int) {
 			for i := 0; i < bm.size; i++ {
 				k := []byte(fmt.Sprintf("key%d", i))
 				err := db.Delete(k)
-				require.NoError(b, err)
-			}
-		})
-	}
-}
-
-func benchmarkGet(b *testing.B, tester DBTester, dbSize int) {
-	/* Populate KV store */
-	db := tester.New()
-	for i := 0; i < dbSize; i++ {
-		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		err := db.Put(k, v)
-		require.NoError(b, err)
-	}
-
-	r := rand.New(rand.NewSource(500))
-
-	bms := []struct {
-		name string
-		size int
-	}{
-		{name: "Hundred", size: 100},
-		{name: "Thousand", size: 1000},
-		{name: "TenThousand", size: 10000},
-		{name: "HundredThousand", size: 100000},
-	}
-	for _, bm := range bms {
-		b.Run(bm.name, func(b *testing.B) {
-			for i := 0; i < bm.size; i++ {
-				k := []byte(fmt.Sprintf("key%d", r.Intn(dbSize)))
-				_, err := db.Get(k)
 				require.NoError(b, err)
 			}
 		})

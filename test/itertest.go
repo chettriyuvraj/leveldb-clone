@@ -12,7 +12,7 @@ type IteratorTester struct {
 	New func(common.DB) common.Iterator
 }
 
-func TestIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester) {
+func testIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester) {
 	db := testerDB.New()
 	iterator := testerIter.New(db)
 	iterations := 10
