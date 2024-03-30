@@ -77,8 +77,11 @@ func NewNode(key, val []byte) *Node {
 	return node
 }
 
+/*
+- Note: Returns nil instead of returning the skiplist nil node
+*/
 func (node *Node) GetAdjacent() *Node {
-	if len(node.forward) <= 1 {
+	if node == nil || len(node.forward) <= 1 || node.forward[1].key == nil { /* Final condition is a test for skip list nil node - we'll return nil instead of returning nil node */
 		return nil
 	}
 	return node.forward[1]
@@ -104,6 +107,31 @@ func (sl *SkipList) Search(key []byte) *Node {
 	if sl.compareKey(dummySearchNode, nodeAhead) == 0 {
 		return nodeAhead
 	}
+	return nil
+}
+
+/*
+- Returns closest key node if searched key doesn't exist
+- Note: Returns 'right' value instead of 'left' value E.g. ["key2", "key4"] -> A search for "key3" will yield "key4"
+*/
+func (sl *SkipList) SearchClosest(key []byte) *Node {
+	/* First search for the insertion spot using a dummy search node with the same key*/
+	node, dummySearchNode := sl.head, NewNode(key, nil)
+	for i := sl.level; i > 0; i-- {
+		for sl.compareKey(node.forward[i], dummySearchNode) < 0 { /* As long as node's key is less than forward[i] */
+			node = node.forward[i]
+		}
+	}
+
+	nodeAhead := node.forward[1]
+	if sl.compareKey(dummySearchNode, nodeAhead) == 0 {
+		return nodeAhead
+	}
+
+	if nodeAhead != sl.nil {
+		return nodeAhead
+	}
+
 	return nil
 }
 
