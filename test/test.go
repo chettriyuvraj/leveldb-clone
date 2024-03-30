@@ -130,8 +130,8 @@ func testRangeScan(t *testing.T, tester DBTester) {
 		}
 	}
 	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, []byte{}, false)
-	iteratorTestVal(t, iterator, []byte{}, false)
+	iteratorTestKey(t, iterator, nil, false)
+	iteratorTestVal(t, iterator, nil, false)
 
 	/* Check inexact ranges + confirm if values exhausted afterwards */
 	start, end = []byte("key"), []byte("key8")
@@ -148,8 +148,8 @@ func testRangeScan(t *testing.T, tester DBTester) {
 		}
 	}
 	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, []byte{}, false)
-	iteratorTestVal(t, iterator, []byte{}, false)
+	iteratorTestKey(t, iterator, nil, false)
+	iteratorTestVal(t, iterator, nil, false)
 }
 
 func benchmarkPut(b *testing.B, tester DBTester) {

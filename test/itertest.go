@@ -19,8 +19,8 @@ func testIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester
 
 	/* Test Empty Iterator */
 	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, []byte{}, false)
-	iteratorTestVal(t, iterator, []byte{}, false)
+	iteratorTestKey(t, iterator, nil, false)
+	iteratorTestVal(t, iterator, nil, false)
 
 	/* Populate db */
 	for i := 0; i < iterations; i++ {
@@ -43,8 +43,8 @@ func testIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester
 
 	/* After all values are exhausted 1st two checks already tested in last iteration of loop, just keeping both checks to be consistent */
 	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, []byte{}, false)
-	iteratorTestVal(t, iterator, []byte{}, false)
+	iteratorTestKey(t, iterator, nil, false)
+	iteratorTestVal(t, iterator, nil, false)
 }
 
 /* NOTE: This will potentially modify the iterator by calling Next() */
