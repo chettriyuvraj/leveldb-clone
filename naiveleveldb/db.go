@@ -33,7 +33,7 @@ func newDBEntry(key, val []byte) *DBEntry {
 func (db *LevelDB) Get(key []byte) (val []byte, err error) {
 	entry, _, err := db.getDBEntry(key)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	return entry.val, nil
@@ -155,10 +155,10 @@ func (iter *LevelDBIterator) Key() []byte {
 	entry, err := iter.getDBEntryByIdx(iter.idx)
 	if err != nil {
 		if errors.Is(err, common.ErrIdxOutOfBounds) {
-			return []byte{}
+			return nil
 		}
 		iter.err = err
-		return []byte{}
+		return nil
 	}
 
 	return entry.key
@@ -168,10 +168,10 @@ func (iter *LevelDBIterator) Value() []byte {
 	entry, err := iter.getDBEntryByIdx(iter.idx)
 	if err != nil {
 		if errors.Is(err, common.ErrIdxOutOfBounds) {
-			return []byte{}
+			return nil
 		}
 		iter.err = err
-		return []byte{}
+		return nil
 	}
 
 	return entry.val
