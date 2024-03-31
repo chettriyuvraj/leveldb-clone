@@ -161,6 +161,7 @@ func benchmarkPut(b *testing.B, tester DBTester) {
 		{name: "Hundred", size: 100},
 		{name: "Thousand", size: 1000},
 		{name: "TenThousand", size: 10000},
+		{name: "ThiryThousand", size: 30000},
 		// {name: "FiftyThousand", size: 50000},
 	}
 
@@ -179,11 +180,11 @@ func benchmarkPut(b *testing.B, tester DBTester) {
 }
 
 func benchmarkGet(b *testing.B, tester DBTester) {
-	benchmarkGetFromTenThousand := func(b *testing.B, tester DBTester) {
-		benchmarkGetHelper(b, tester, 10000)
+	benchmarkGetFromFiftyThousand := func(b *testing.B, tester DBTester) {
+		benchmarkGetHelper(b, tester, 50000)
 	}
 
-	benchmarkGetFromTenThousand(b, tester)
+	benchmarkGetFromFiftyThousand(b, tester)
 }
 
 func benchmarkGetHelper(b *testing.B, tester DBTester, dbSize int) {
@@ -195,41 +196,24 @@ func benchmarkGetHelper(b *testing.B, tester DBTester, dbSize int) {
 		require.NoError(b, err)
 	}
 
-	b.ResetTimer()
-
 	bms := []struct {
 		name string
 		size int
 	}{
 		{name: "Hundred", size: 100},
 		{name: "Thousand", size: 1000},
+		{name: "FiveThousand", size: 5000},
 		{name: "TenThousand", size: 10000},
-		// {name: "FiftyThousand", size: 50000},
+		{name: "ThirtyThousand", size: 30000},
+		{name: "FiftyThousand", size: 50000},
 	}
 
+	b.ResetTimer()
 	for _, bm := range bms {
-		b.Run(fmt.Sprintf("Random:%s", bm.name), func(b *testing.B) {
+		b.Run(bm.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < bm.size; j++ {
 					k := []byte(fmt.Sprintf("key%d", rand.Intn(dbSize)))
-					_, err := db.Get(k)
-					require.NoError(b, err)
-				}
-			}
-		})
-		b.Run(fmt.Sprintf("Ascending:%s", bm.name), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				for j := 0; j < bm.size; j++ {
-					k := []byte(fmt.Sprintf("key%d", i))
-					_, err := db.Get(k)
-					require.NoError(b, err)
-				}
-			}
-		})
-		b.Run(fmt.Sprintf("Descending:%s", bm.name), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				for j := bm.size - 1; j >= 0; j-- {
-					k := []byte(fmt.Sprintf("key%d", i))
 					_, err := db.Get(k)
 					require.NoError(b, err)
 				}
@@ -240,11 +224,11 @@ func benchmarkGetHelper(b *testing.B, tester DBTester, dbSize int) {
 }
 
 func benchmarkDelete(b *testing.B, tester DBTester) {
-	benchmarkDeleteFromTenThousand := func(b *testing.B, tester DBTester) {
-		benchmarkDeleteHelper(b, tester, 10000)
+	benchmarkDeleteFromFiftyThousand := func(b *testing.B, tester DBTester) {
+		benchmarkDeleteHelper(b, tester, 50000)
 	}
 
-	benchmarkDeleteFromTenThousand(b, tester)
+	benchmarkDeleteFromFiftyThousand(b, tester)
 }
 
 func benchmarkDeleteHelper(b *testing.B, tester DBTester, dbSize int) {
@@ -254,40 +238,33 @@ func benchmarkDeleteHelper(b *testing.B, tester DBTester, dbSize int) {
 		err := db.Put(k, v)
 		require.NoError(b, err)
 	}
-
 	b.ResetTimer()
-
 	bms := []struct {
 		name string
 		size int
 	}{
 		{name: "Hundred", size: 100},
 		{name: "Thousand", size: 1000},
+		{name: "FiveThousand", size: 5000},
 		{name: "TenThousand", size: 10000},
-		// {name: "FiftyThousand", size: 50000},
+		{name: "ThirtyThousand", size: 30000},
+		{name: "FiftyThousand", size: 50000},
 	}
 
 	for _, bm := range bms {
-		b.Run(fmt.Sprintf("Random/%s", bm.name), func(b *testing.B) {
+		/* Repopulate db if too many entries deleted from previous run */
+		if bm.size*5 >= dbSize {
+			for i := 0; i < dbSize; i++ {
+				k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+				err := db.Put(k, v)
+				require.NoError(b, err)
+			}
+		}
+
+		b.Run(bm.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < bm.size; j++ {
 					k := []byte(fmt.Sprintf("key%d", rand.Intn(dbSize)))
-					db.Delete(k)
-				}
-			}
-		})
-		b.Run(fmt.Sprintf("Ascending/%s", bm.name), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				for j := 0; j < bm.size; j++ {
-					k := []byte(fmt.Sprintf("key%d", j))
-					db.Delete(k)
-				}
-			}
-		})
-		b.Run(fmt.Sprintf("Descending/%s", bm.name), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				for j := bm.size - 1; j >= 0; j-- {
-					k := []byte(fmt.Sprintf("key%d", j))
 					db.Delete(k)
 				}
 			}
