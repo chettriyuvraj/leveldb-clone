@@ -153,23 +153,11 @@ func testRangeScan(t *testing.T, tester DBTester) {
 }
 
 func benchmarkPut(b *testing.B, tester DBTester) {
-	bms := []struct {
-		name string
-		size int
-	}{
-		{name: "Hundred", size: 100},
-		{name: "Thousand", size: 1000},
-		{name: "TenThousand", size: 10000},
-		{name: "HundredThousand", size: 100000},
-	}
-	for _, bm := range bms {
-		b.Run(bm.name, func(b *testing.B) {
-			db := tester.New()
-			for i := 0; i < bm.size; i++ {
-				k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-				db.Put(k, v)
-			}
-		})
+	db := tester.New()
+	for i := 0; i < b.N; i++ {
+		randItem := rand.Int()
+		k, v := []byte(fmt.Sprintf("key%d", randItem)), []byte(fmt.Sprintf("val%d", randItem))
+		db.Put(k, v)
 	}
 }
 
@@ -204,25 +192,12 @@ func benchmarkGetHelper(b *testing.B, tester DBTester, dbSize int) {
 		require.NoError(b, err)
 	}
 
-	r := rand.New(rand.NewSource(500))
+	b.ResetTimer()
 
-	bms := []struct {
-		name string
-		size int
-	}{
-		{name: "Hundred", size: 100},
-		{name: "Thousand", size: 1000},
-		{name: "TenThousand", size: 10000},
-		{name: "HundredThousand", size: 100000},
-	}
-	for _, bm := range bms {
-		b.Run(bm.name, func(b *testing.B) {
-			for i := 0; i < bm.size; i++ {
-				k := []byte(fmt.Sprintf("key%d", r.Intn(dbSize)))
-				_, err := db.Get(k)
-				require.NoError(b, err)
-			}
-		})
+	for i := 0; i < b.N; i++ {
+		k := []byte(fmt.Sprintf("key%d", rand.Intn(dbSize)))
+		_, err := db.Get(k)
+		require.NoError(b, err)
 	}
 }
 
@@ -249,39 +224,16 @@ func benchmarkDelete(b *testing.B, tester DBTester) {
 }
 
 func benchmarkDeleteHelper(b *testing.B, tester DBTester, dbSize int) {
-
-	bms := []struct {
-		name string
-		size int
-	}{
-		{name: "Hundred", size: 100},
-		{name: "Thousand", size: 1000},
-		{name: "TenThousand", size: 10000},
-		{name: "HundredThousand", size: 100000},
+	db := tester.New()
+	for i := 0; i < dbSize; i++ {
+		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+		err := db.Put(k, v)
+		require.NoError(b, err)
 	}
-	for _, bm := range bms {
 
-		if bm.size > dbSize {
-			b.Skip()
-		}
-
-		b.Run(bm.name, func(b *testing.B) {
-
-			/* Each bm is run multiple times, so db needs to be repopulated for deletions each time - using ResetTimer to ignore setup cost */
-			db := tester.New()
-			for i := 0; i < dbSize; i++ {
-				k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-				err := db.Put(k, v)
-				require.NoError(b, err)
-			}
-
-			/* Deletions are done in order, results for random deletes would be different */
-			b.ResetTimer()
-			for i := 0; i < bm.size; i++ {
-				k := []byte(fmt.Sprintf("key%d", i))
-				err := db.Delete(k)
-				require.NoError(b, err)
-			}
-		})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		k := []byte(fmt.Sprintf("key%d", rand.Intn(dbSize)))
+		db.Delete(k)
 	}
 }
