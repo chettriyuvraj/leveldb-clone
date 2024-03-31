@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	P        = 0.5
-	MAXLEVEL = 16
+	P        = 0.25
+	MAXLEVEL = 12
 )
 
 type LevelDB struct {
