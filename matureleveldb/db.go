@@ -24,6 +24,10 @@ type LevelDBIterator struct {
 	err                error
 }
 
+func (db *LevelDB) String() string {
+	return db.SkipList.String()
+}
+
 func NewLevelDB() *LevelDB {
 	return &LevelDB{*skiplist.NewSkipList(P, MAXLEVEL)}
 }

@@ -31,12 +31,76 @@ func NewSkipList(p float64, maxLevel int) *SkipList {
 }
 
 func (sl *SkipList) String() string {
-	var sb strings.Builder
-	sb.WriteString("Head: ")
-	sb.WriteString(sl.head.String())
-	for curNode := sl.head.forward[1]; curNode != sl.nil; curNode = curNode.forward[1] {
-		sb.WriteString(curNode.String())
+	/* Construct a map illustrating the skiplist in order from left to right */
+	slInSequence := map[*Node]int{}
+	for i, curNode := 0, sl.head; ; curNode, i = curNode.forward[1], i+1 {
+		slInSequence[curNode] = i
+		if curNode == sl.nil {
+			break
+		}
 	}
+
+	/* Note:
+	- Defining a func to print each level, then using it to print each level i.e. 5th level first
+	- Print of Key:Val will start getting disoriented if length of key/val gets longer
+	- Level 0 indicates key is to be printed, Level -1 indicates val is to be printed
+	*/
+	drawLevel := func(level int, slInSequence map[*Node]int) string {
+		distanceBetweenAdjLevels := 10
+		var sb strings.Builder
+		if level > 0 {
+			sb.WriteString(fmt.Sprintf("[%d]", level))
+		} else {
+			sb.WriteString("[ ]")
+		}
+
+		curNode, prevNode := sl.head, sl.head
+		for {
+			/* Printing each level*/
+			if curNode != sl.head {
+				levelsBetweenCurNodeAndPrevNode := slInSequence[curNode] - slInSequence[prevNode]
+				for i := 0; i < levelsBetweenCurNodeAndPrevNode; i++ {
+					if i > 0 {
+						sb.WriteString("---") /* Three dashes extra for every time we don't have a node on this level */
+					}
+					for j := 0; j < distanceBetweenAdjLevels; j++ {
+						if level > 0 {
+							sb.WriteString("-")
+						} else {
+							sb.WriteString(" ")
+						}
+					}
+				}
+				if level == 0 {
+					sb.WriteString(fmt.Sprintf("(%s)", string(curNode.key)))
+				} else if level == -1 {
+					sb.WriteString(fmt.Sprintf("(%s)", string(curNode.val)))
+				} else {
+					sb.WriteString(fmt.Sprintf("[%d]", level))
+				}
+			}
+
+			if curNode == sl.nil {
+				break
+			}
+
+			if level > 0 {
+				prevNode, curNode = curNode, curNode.forward[level]
+			} else {
+				prevNode, curNode = curNode, curNode.forward[1]
+			}
+
+		}
+		return sb.String()
+	}
+
+	/* Draw the skip list level-by-level i.e. entire 5th level first, then 4th, then 3rd ...*/
+	var sb strings.Builder
+	for curLevel := sl.level; curLevel >= -1; curLevel-- {
+		sb.WriteString(drawLevel(curLevel, slInSequence))
+		sb.WriteString("\n")
+	}
+
 	return sb.String()
 }
 
