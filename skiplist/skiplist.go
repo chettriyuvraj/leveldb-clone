@@ -167,7 +167,7 @@ func (sl *SkipList) Insert(key, val []byte) error {
 		}
 		sl.level = randomLevel
 	}
-	for i := 1; i <= sl.level; i++ {
+	for i := 1; i <= randomLevel; i++ {
 		newNode.forward = append(newNode.forward, updateList[i].forward[i])
 		updateList[i].forward[i] = newNode
 	}
@@ -233,21 +233,10 @@ func (sl *SkipList) compareKey(n1, n2 *Node) int {
 	return bytes.Compare(n1.key, n2.key)
 }
 
-/*
-- Randomlevel function borrowed from leveldb impl
-- TODO: the one commented out seems to slow things down at times (giving out large levels consistently (?))
-*/
 func (sl *SkipList) randomLevel() int {
-	// lvl := 1
-	// for rand.Float64() < sl.p && lvl < sl.maxLevel {
-	// 	lvl++
-	// }
-	// return lvl
-	rnd := rand.New(rand.NewSource(0xdeadbeef))
-	const branching = 4
-	h := 1
-	for h < sl.maxLevel && rnd.Int()%branching == 0 {
-		h++
+	lvl := 1
+	for rand.Float64() < sl.p && lvl < sl.maxLevel {
+		lvl++
 	}
-	return h
+	return lvl
 }
