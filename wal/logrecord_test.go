@@ -36,7 +36,7 @@ func TestRecordUnmarshal(t *testing.T) {
 		{name: "unmarshal a simple binary log record", want: record, data: data},
 		{name: "violates minimum log size", data: []byte{DELETE, 0x01, 0x02}, err: ErrMinRecordSize},
 		{name: "key smaller than key length", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x08, 0x01, 0x02, 0x02, 0x03, 0x04}, err: ErrKeySmallerThanKeyLen},
-		{name: "no val data exists", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x08}, err: ErrNoValDataExists},
+		{name: "no val data exists", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x08}, err: ErrNoValData},
 		{name: "val smaller than val length", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x03, 0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x02, 0x01}, err: ErrValSmallerThanValLen},
 	}
 
