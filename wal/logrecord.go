@@ -32,8 +32,9 @@ var opmap map[byte]bool = map[byte]bool{
 
 var ErrOpDoesNotExist = errors.New("the provided op does not exist")
 var ErrMinRecordSize = errors.New("size of record lesser than the minimum record size")
-var ErrNoKeyLength = errors.New("no key length does not exist after op")
+var ErrNoKeyLength = errors.New("no key length exists after op")
 var ErrNoKeyData = errors.New("key data of the specified key length does not exist after key length")
+var ErrNoValLength = errors.New("no val length exists after key")
 var ErrNoValData = errors.New("val data of the specified key length does not exist after val length")
 
 type LogRecord struct {
