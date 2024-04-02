@@ -39,7 +39,7 @@ type LogRecord struct {
 }
 
 func NewLogRecord(k, v []byte, op byte) LogRecord {
-	return LogRecord{key: k, val: v}
+	return LogRecord{key: k, val: v, op: op}
 }
 
 func (log *LogRecord) MarshalBinary() (data []byte, err error) {
@@ -95,5 +95,4 @@ func (log *LogRecord) UnmarshalBinary(data []byte) error {
 	bytesRead += vEnd - vStart
 
 	return nil
-
 }
