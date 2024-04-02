@@ -9,7 +9,7 @@ import (
 type WAL struct {
 	file     io.Writer
 	filename string
-	fileFlag int /* Only for book-keeping */
+	fileFlag int
 }
 
 type WALFlag byte
@@ -27,37 +27,19 @@ const (
 	TRUNC
 )
 
-var WALFlagToFileFlag map[WALFlag]int = map[WALFlag]int{
+var flagMappings map[WALFlag]int = map[WALFlag]int{
 	RDONLY: os.O_RDONLY,
 	WRONLY: os.O_WRONLY | os.O_APPEND,
 	CREATE: os.O_CREATE,
 	TRUNC:  os.O_TRUNC,
 }
 
-func Open(filename string, flag WALFlag) (*WAL, error) {
+func Open(filename string, wf WALFlag) (*WAL, error) {
 	log := WAL{filename: filename}
 
-	/* Grab different flags in separate variables */
-	primaryFlag := flag & 0x03
-	orFlag := flag & 0b11111100
-	if primaryFlag == 0x00 {
-		return nil, ErrOnePrimaryModeRequired
-	}
-	if primaryFlag == 0x03 {
-		return nil, ErrOnlyOnePrimaryModeAllowed
-	}
-
-	/* Set file flag wrt corresponding WALFlag */
-	fileFlag, exists := WALFlagToFileFlag[primaryFlag]
-	if !exists {
-		return nil, ErrInvalidPrimaryMode
-	}
-	switch {
-	case (orFlag & CREATE) != 0:
-		fileFlag |= WALFlagToFileFlag[CREATE]
-		fallthrough
-	case (orFlag & TRUNC) != 0:
-		fileFlag |= WALFlagToFileFlag[TRUNC]
+	fileFlag, err := WALFlagToFileFlag(wf)
+	if err != nil {
+		return nil, err
 	}
 
 	f, err := os.OpenFile(filename, fileFlag, 0x777) /* TODO: use lesser permissions */
@@ -68,5 +50,41 @@ func Open(filename string, flag WALFlag) (*WAL, error) {
 	log.fileFlag = fileFlag
 
 	return &log, nil
-
 }
+
+func WALFlagToFileFlag(wf WALFlag) (int, error) {
+	/* Grab primary and or flags separately */
+	primary := wf & 0x03
+	or := wf & 0b11111100
+	if primary == 0x00 {
+		return 0, ErrOnePrimaryModeRequired
+	}
+	if primary == 0x03 {
+		return 0, ErrOnlyOnePrimaryModeAllowed
+	}
+
+	/* Convert */
+	fileFlag, exists := flagMappings[primary]
+	if !exists {
+		return 0, ErrInvalidPrimaryMode
+	}
+	switch {
+	case (or & CREATE) != 0:
+		fileFlag |= flagMappings[CREATE]
+		fallthrough
+	case (or & TRUNC) != 0:
+		fileFlag |= flagMappings[TRUNC]
+	}
+
+	return fileFlag, nil
+}
+
+// func (log *WAL) Append(k, v []byte, op byte) error {
+// 	if log.fileFlag != file
+
+// 	log, err := NewLogRecord(k, v, op)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// }
