@@ -41,8 +41,11 @@ type LogRecord struct {
 	op       byte
 }
 
-func NewLogRecord(k, v []byte, op byte) LogRecord {
-	return LogRecord{key: k, val: v, op: op}
+func NewLogRecord(k, v []byte, op byte) (*LogRecord, error) {
+	if exists := opmap[op]; !exists {
+		return nil, ErrOpDoesNotExist
+	}
+	return &LogRecord{key: k, val: v, op: op}, nil
 }
 
 func (log *LogRecord) MarshalBinary() (data []byte, err error) {

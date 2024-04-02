@@ -8,7 +8,8 @@ import (
 
 func TestRecordMarshal(t *testing.T) {
 	k, v, op := []byte("key4344"), []byte("val334"), DELETE
-	record := NewLogRecord(k, v, op)
+	record, err := NewLogRecord(k, v, op)
+	require.NoError(t, err)
 	data, err := record.MarshalBinary()
 
 	/* Compute expected result by hand and then compare */
@@ -21,7 +22,8 @@ func TestRecordMarshal(t *testing.T) {
 
 func TestRecordUnmarshal(t *testing.T) {
 	k, v, op := []byte("key4344"), []byte("val334"), DELETE
-	record := NewLogRecord(k, v, op)
+	record, err := NewLogRecord(k, v, op)
+	require.NoError(t, err)
 	data, err := record.MarshalBinary()
 	require.NoError(t, err)
 
@@ -29,7 +31,7 @@ func TestRecordUnmarshal(t *testing.T) {
 		name string
 		data []byte
 		err  error
-		want LogRecord
+		want *LogRecord
 	}{
 		{name: "unmarshal a simple binary log record", want: record, data: data},
 		{name: "violates minimum log size", data: []byte{DELETE, 0x01, 0x02}, err: ErrMinLogSize},
@@ -39,7 +41,7 @@ func TestRecordUnmarshal(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		got := LogRecord{}
+		got := &LogRecord{}
 		require.Equal(t, tc.err, got.UnmarshalBinary(tc.data))
 		if tc.err == nil {
 			require.Equal(t, got, tc.want)
