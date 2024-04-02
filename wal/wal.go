@@ -1,98 +1,72 @@
 package wal
 
-/*
-1 individual log record format:
-- 1 byte op-type
-- 4 byte key length
-- {key-length} bytes key
-- 4 byte val length
-- {val-length} bytes val
-As little endian
-*/
-
 import (
-	"encoding/binary"
 	"errors"
+	"io"
+	"os"
 )
+
+type WAL struct {
+	file     io.Writer
+	filename string
+	fileFlag int /* Only for book-keeping */
+}
+
+type WALFlag byte
+
+var ErrOnlyOnePrimaryModeAllowed = errors.New("only one primary mode can be chosen")
+var ErrOnePrimaryModeRequired = errors.New("at least one primary mode must be chosen")
+var ErrInvalidPrimaryMode = errors.New("invalid primary mode")
 
 const (
-	PUT = byte(iota)
-	DELETE
+	/* These are primary flags - only 1 of them can be chosen */
+	RDONLY = WALFlag(0x01 << iota)
+	WRONLY /* Which means only appends */
+	/* These are orModes - may be OR'd to form combinations */
+	CREATE
+	TRUNC
 )
 
-const MINIMUMLOGSIZE = 9
-
-var opmap map[byte]bool = map[byte]bool{
-	PUT:    true,
-	DELETE: true,
+var WALFlagToFileFlag map[WALFlag]int = map[WALFlag]int{
+	RDONLY: os.O_RDONLY,
+	WRONLY: os.O_WRONLY | os.O_APPEND,
+	CREATE: os.O_CREATE,
+	TRUNC:  os.O_TRUNC,
 }
 
-var ErrOpDoesNotExist = errors.New("the provided op does not exist")
-var ErrMinLogSize = errors.New("size of log lesser than the minimum log size")
-var ErrKeySmallerThanKeyLen = errors.New("size of key lesser than key length specified")
-var ErrNoValDataExists = errors.New("binary log record ends after key")
-var ErrValSmallerThanValLen = errors.New("size of val lesser than val length specified")
+func Open(filename string, flag WALFlag) (*WAL, error) {
+	log := WAL{filename: filename}
 
-type LogRecord struct {
-	key, val []byte
-	op       byte
-}
-
-func NewLogRecord(k, v []byte, op byte) LogRecord {
-	return LogRecord{key: k, val: v, op: op}
-}
-
-func (log *LogRecord) MarshalBinary() (data []byte, err error) {
-	data = []byte{log.op}
-	data = binary.BigEndian.AppendUint32(data, uint32(len(log.key)))
-	data = append(data, log.key...)
-	data = binary.BigEndian.AppendUint32(data, uint32(len(log.val)))
-	data = append(data, log.val...)
-	return data, nil
-}
-
-func (log *LogRecord) UnmarshalBinary(data []byte) error {
-	if len(data) < MINIMUMLOGSIZE {
-		return ErrMinLogSize
+	/* Grab different flags in separate variables */
+	primaryFlag := flag & 0x03
+	orFlag := flag & 0b11111100
+	if primaryFlag == 0x00 {
+		return nil, ErrOnePrimaryModeRequired
+	}
+	if primaryFlag == 0x03 {
+		return nil, ErrOnlyOnePrimaryModeAllowed
 	}
 
-	bytesRead := 0
-
-	/* Read op */
-	op := data[0]
-	if _, exists := opmap[op]; !exists {
-		return ErrOpDoesNotExist
+	/* Set file flag wrt corresponding WALFlag */
+	fileFlag, exists := WALFlagToFileFlag[primaryFlag]
+	if !exists {
+		return nil, ErrInvalidPrimaryMode
 	}
-	log.op = op
-	bytesRead += 1
-
-	/* Read key len */
-	kLen := data[1:5]
-	bytesRead += 4
-
-	/* Read key */
-	kStart, kEnd := 5, int(5+binary.BigEndian.Uint32(kLen))
-	if kEnd-kStart > len(data)-bytesRead {
-		return ErrKeySmallerThanKeyLen
+	switch {
+	case (orFlag & CREATE) != 0:
+		fileFlag |= WALFlagToFileFlag[CREATE]
+		fallthrough
+	case (orFlag & TRUNC) != 0:
+		fileFlag |= WALFlagToFileFlag[TRUNC]
 	}
-	log.key = data[kStart:kEnd]
-	bytesRead += kEnd - kStart
 
-	/* Read val len*/
-	vLenStart, vLenEnd := kEnd, kEnd+4
-	if len(data) < vLenEnd {
-		return ErrNoValDataExists
+	f, err := os.OpenFile(filename, fileFlag, 0x777) /* TODO: use lesser permissions */
+	if err != nil {
+		return nil, err
 	}
-	vLen := data[vLenStart:vLenEnd]
-	bytesRead += vLenEnd - vLenStart
+	log.file = f
+	log.fileFlag = fileFlag
 
-	/* Read val */
-	vStart, vEnd := vLenEnd, vLenEnd+int(binary.BigEndian.Uint32(vLen))
-	if vEnd-vStart > len(data)-bytesRead {
-		return ErrValSmallerThanValLen
-	}
-	log.val = data[vStart:vEnd]
-	bytesRead += vEnd - vStart
+	return &log, nil
 
-	return nil
 }

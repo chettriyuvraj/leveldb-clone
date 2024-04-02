@@ -1,48 +1,36 @@
 package wal
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestWALMarshal(t *testing.T) {
-	k, v, op := []byte("key4344"), []byte("val334"), DELETE
-	log := NewLogRecord(k, v, op)
-	data, err := log.MarshalBinary()
-
-	/* Compute expected result by hand and then compare */
-	e1 := append([]byte{DELETE, 0x00, 0x00, 0x00, 0x07}, k...)
-	e2 := append([]byte{0x00, 0x00, 0x00, 0x06}, v...)
-	expected := append(e1, e2...)
-	require.NoError(t, err)
-	require.Equal(t, expected, data)
-}
-
-func TestWALUnmarshal(t *testing.T) {
-	k, v, op := []byte("key4344"), []byte("val334"), DELETE
-	log := NewLogRecord(k, v, op)
-	data, err := log.MarshalBinary()
-	require.NoError(t, err)
-
+/* Test flags + errors for Open function */
+func TestOpen(t *testing.T) {
 	tcs := []struct {
-		name string
-		data []byte
-		err  error
-		want LogRecord
+		name             string
+		flag             WALFlag
+		expectedFileFlag int
+		err              error
 	}{
-		{name: "unmarshal a simple binary log record", want: log, data: data},
-		{name: "violates minimum log size", data: []byte{DELETE, 0x01, 0x02}, err: ErrMinLogSize},
-		{name: "key smaller than key length", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x08, 0x01, 0x02, 0x02, 0x03, 0x04}, err: ErrKeySmallerThanKeyLen},
-		{name: "no val data exists", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x08}, err: ErrNoValDataExists},
-		{name: "val smaller than val length", data: []byte{DELETE, 0x00, 0x00, 0x00, 0x03, 0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x02, 0x01}, err: ErrValSmallerThanValLen},
+		{name: "error: both RDONLY and APPENDONLY chosen", err: ErrOnlyOnePrimaryModeAllowed, flag: 0x03},
+		{name: "error: no file modeschosen", err: ErrOnlyOnePrimaryModeAllowed, flag: 0x00},
+		{name: "error: invalid file mode", err: ErrOnlyOnePrimaryModeAllowed, flag: 0x04},
+		/* Test that WALFlag sets the correct os.file flag */
+		{name: "RDONLY flag set", flag: RDONLY, expectedFileFlag: os.O_RDONLY},
+		{name: "WRONLY flag set", flag: WRONLY, expectedFileFlag: os.O_WRONLY | os.O_APPEND},
+		{name: "RDONLY + CREATE flag set", flag: RDONLY | CREATE, expectedFileFlag: os.O_RDONLY | os.O_CREATE},
+		{name: "WRONLY + TRUNC flag set", flag: WRONLY | TRUNC, expectedFileFlag: os.O_WRONLY | os.O_APPEND | os.O_TRUNC},
 	}
 
 	for _, tc := range tcs {
-		got := LogRecord{}
-		require.Equal(t, tc.err, got.UnmarshalBinary(tc.data))
-		if tc.err == nil {
-			require.Equal(t, got, tc.want)
+		log, err := Open("test", tc.flag)
+		if err != nil {
+			require.Error(t, err, tc.err)
+		} else {
+			require.Equal(t, tc.expectedFileFlag, log.fileFlag)
 		}
 	}
 }
