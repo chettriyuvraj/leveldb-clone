@@ -32,11 +32,9 @@ var opmap map[byte]bool = map[byte]bool{
 
 var ErrOpDoesNotExist = errors.New("the provided op does not exist")
 var ErrMinRecordSize = errors.New("size of record lesser than the minimum record size")
-var ErrKeySmallerThanKeyLen = errors.New("size of key lesser than key length specified")
-var ErrNoKeyLength = errors.New("no key length exists after op")
-var ErrNoKeyData = errors.New("no key data exists after key length")
-var ErrNoValData = errors.New("binary log record ends after key")
-var ErrValSmallerThanValLen = errors.New("size of val lesser than val length specified")
+var ErrNoKeyLength = errors.New("no key length does not exist after op")
+var ErrNoKeyData = errors.New("key data of the specified key length does not exist after key length")
+var ErrNoValData = errors.New("val data of the specified key length does not exist after val length")
 
 type LogRecord struct {
 	key, val []byte
@@ -81,7 +79,7 @@ func (record *LogRecord) UnmarshalBinary(data []byte) error {
 	/* Read key */
 	kStart, kEnd := 5, int(5+binary.BigEndian.Uint32(kLen))
 	if kEnd-kStart > len(data)-bytesRead {
-		return ErrKeySmallerThanKeyLen
+		return ErrNoKeyData
 	}
 	record.key = data[kStart:kEnd]
 	bytesRead += kEnd - kStart
@@ -97,7 +95,7 @@ func (record *LogRecord) UnmarshalBinary(data []byte) error {
 	/* Read val */
 	vStart, vEnd := vLenEnd, vLenEnd+int(binary.BigEndian.Uint32(vLen))
 	if vEnd-vStart > len(data)-bytesRead {
-		return ErrValSmallerThanValLen
+		return ErrNoValData
 	}
 	record.val = data[vStart:vEnd]
 	bytesRead += vEnd - vStart
