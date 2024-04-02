@@ -1,11 +1,21 @@
 package wal
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+/* To mock files for test */
+type BytesBufferCloser struct {
+	bytes.Buffer
+}
+
+func (b *BytesBufferCloser) Close() error {
+	return nil
+}
 
 /* Test flags + errors for Open function */
 func TestOpen(t *testing.T) {
@@ -33,4 +43,45 @@ func TestOpen(t *testing.T) {
 			require.Equal(t, tc.expectedFileFlag, log.fileFlag)
 		}
 	}
+}
+
+func TestAppendAndReplay(t *testing.T) {
+	log := &WAL{fileFlag: os.O_RDONLY, file: &BytesBufferCloser{}}
+	records := []LogRecord{
+		{key: []byte("k1"), val: []byte("v1"), op: DELETE},
+		{key: []byte("k2"), val: []byte("v2"), op: PUT},
+		{key: []byte("k3"), val: []byte("v3"), op: DELETE},
+	}
+
+	/* Test error: log not in WRONLY mode on append */
+	r1 := records[0]
+	err := log.Append(r1.key, r1.val, r1.op)
+	require.Error(t, err, ErrFileNotInWRONLYMode)
+
+	/* Test error: log not in RDONLY mode on append */
+	log.fileFlag = flagMappings[WRONLY]
+	_, err = log.Replay()
+	require.Error(t, err, ErrFileNotInRDONLYMode)
+
+	/* Append to log and replay the same data successfully */
+	tcs := []struct {
+		name    string
+		records []LogRecord
+	}{
+		{"append 1 log", records[0:1]},
+		{"append multiple logs", records},
+	}
+
+	for _, tc := range tcs {
+		log.fileFlag = flagMappings[WRONLY]
+		for _, record := range tc.records {
+			err = log.Append(record.key, record.val, record.op)
+			require.NoError(t, err)
+		}
+		log.fileFlag = flagMappings[RDONLY]
+		replayLogs, err := log.Replay()
+		require.NoError(t, err)
+		require.Equal(t, tc.records, replayLogs)
+	}
+
 }
