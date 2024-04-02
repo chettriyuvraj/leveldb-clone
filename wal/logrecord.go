@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	MINIMUMLOGSIZE     = 9
+	MINIMUMRECORDSIZE  = 9
 	WALDEFAULTFILENAME = "wal.log"
 )
 
@@ -31,7 +31,7 @@ var opmap map[byte]bool = map[byte]bool{
 }
 
 var ErrOpDoesNotExist = errors.New("the provided op does not exist")
-var ErrMinLogSize = errors.New("size of log lesser than the minimum log size")
+var ErrMinRecordSize = errors.New("size of record lesser than the minimum record size")
 var ErrKeySmallerThanKeyLen = errors.New("size of key lesser than key length specified")
 var ErrNoValDataExists = errors.New("binary log record ends after key")
 var ErrValSmallerThanValLen = errors.New("size of val lesser than val length specified")
@@ -48,18 +48,18 @@ func NewLogRecord(k, v []byte, op byte) (*LogRecord, error) {
 	return &LogRecord{key: k, val: v, op: op}, nil
 }
 
-func (log *LogRecord) MarshalBinary() (data []byte, err error) {
-	data = []byte{log.op}
-	data = binary.BigEndian.AppendUint32(data, uint32(len(log.key)))
-	data = append(data, log.key...)
-	data = binary.BigEndian.AppendUint32(data, uint32(len(log.val)))
-	data = append(data, log.val...)
+func (record *LogRecord) MarshalBinary() (data []byte, err error) {
+	data = []byte{record.op}
+	data = binary.BigEndian.AppendUint32(data, uint32(len(record.key)))
+	data = append(data, record.key...)
+	data = binary.BigEndian.AppendUint32(data, uint32(len(record.val)))
+	data = append(data, record.val...)
 	return data, nil
 }
 
-func (log *LogRecord) UnmarshalBinary(data []byte) error {
-	if len(data) < MINIMUMLOGSIZE {
-		return ErrMinLogSize
+func (record *LogRecord) UnmarshalBinary(data []byte) error {
+	if len(data) < MINIMUMRECORDSIZE {
+		return ErrMinRecordSize
 	}
 
 	bytesRead := 0
@@ -69,7 +69,7 @@ func (log *LogRecord) UnmarshalBinary(data []byte) error {
 	if _, exists := opmap[op]; !exists {
 		return ErrOpDoesNotExist
 	}
-	log.op = op
+	record.op = op
 	bytesRead += 1
 
 	/* Read key len */
@@ -81,7 +81,7 @@ func (log *LogRecord) UnmarshalBinary(data []byte) error {
 	if kEnd-kStart > len(data)-bytesRead {
 		return ErrKeySmallerThanKeyLen
 	}
-	log.key = data[kStart:kEnd]
+	record.key = data[kStart:kEnd]
 	bytesRead += kEnd - kStart
 
 	/* Read val len*/
@@ -97,7 +97,7 @@ func (log *LogRecord) UnmarshalBinary(data []byte) error {
 	if vEnd-vStart > len(data)-bytesRead {
 		return ErrValSmallerThanValLen
 	}
-	log.val = data[vStart:vEnd]
+	record.val = data[vStart:vEnd]
 	bytesRead += vEnd - vStart
 
 	return nil
