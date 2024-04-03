@@ -3,18 +3,22 @@ package matureleveldb
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/chettriyuvraj/leveldb-clone/skiplist"
+	"github.com/chettriyuvraj/leveldb-clone/wal"
 )
 
 const (
-	P        = 0.25
-	MAXLEVEL = 12
+	P                  = 0.25
+	MAXLEVEL           = 12
+	DEFAULTWALFILENAME = "wal"
 )
 
 type LevelDB struct {
 	skiplist.SkipList
+	log *wal.WAL
 }
 type LevelDBIterator struct {
 	*LevelDB
@@ -28,8 +32,17 @@ func (db *LevelDB) String() string {
 	return db.SkipList.String()
 }
 
-func NewLevelDB() *LevelDB {
-	return &LevelDB{*skiplist.NewSkipList(P, MAXLEVEL)}
+func NewLevelDB() (*LevelDB, error) {
+	return &LevelDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}, nil
+}
+
+func (db *LevelDB) AttachWAL(filename string) error {
+	log, err := wal.Open(filename)
+	if err != nil {
+		return err
+	}
+	db.log = log
+	return nil
 }
 
 func (db *LevelDB) Get(key []byte) (val []byte, err error) {
@@ -49,6 +62,13 @@ func (db *LevelDB) Has(key []byte) (ret bool, err error) {
 }
 
 func (db *LevelDB) Put(key, val []byte) error {
+	if db.log != nil {
+		err := db.log.Append(key, val, wal.PUT)
+		if err != nil {
+			return fmt.Errorf("error appending PUT to WAL")
+		}
+	}
+
 	if err := db.Insert(key, val); err != nil {
 		return err
 	}
@@ -56,6 +76,13 @@ func (db *LevelDB) Put(key, val []byte) error {
 }
 
 func (db *LevelDB) Delete(key []byte) error {
+	if db.log != nil {
+		err := db.log.Append(key, nil, wal.DELETE)
+		if err != nil {
+			return fmt.Errorf("error appending DELETE to WAL")
+		}
+	}
+
 	if err := db.SkipList.Delete(key); err != nil { /* Not using embedded skiplist method here directly as it is the same as db method name (Delete) */
 		if errors.Is(err, skiplist.ErrKeyDoesNotExist) {
 			return common.ErrKeyDoesNotExist
@@ -65,9 +92,45 @@ func (db *LevelDB) Delete(key []byte) error {
 	return nil
 }
 
+func (db *LevelDB) Close() error {
+	if db.log == nil {
+		return nil
+	}
+	return db.log.Close()
+}
+
 func (db *LevelDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	iter := NewLevelDBIterator(db, start, limit)
 	return iter, iter.Error()
+}
+
+/* Note: This DB must have it's log field set to nil, otherwise it will record each operation from our WAL replay as well */
+func (db *LevelDB) Replay(WALFileName string) error {
+	log, err := wal.Open(WALFileName)
+	if err != nil {
+		return fmt.Errorf("error opening wal file: %w", err)
+	}
+
+	records, err := log.Replay()
+	if err != nil {
+		return fmt.Errorf("error replaying records from wal file: %w", err)
+	}
+	for _, record := range records {
+		op := record.Op()
+		switch op {
+		case wal.PUT:
+			err := db.Put(record.Key(), record.Val())
+			if err != nil {
+				return fmt.Errorf("error replaying records from wal file: %w", err)
+			}
+		case wal.DELETE:
+			err := db.Delete(record.Key())
+			if err != nil {
+				return fmt.Errorf("error replaying records from wal file: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func NewLevelDBIterator(db *LevelDB, startKey, limitKey []byte) *LevelDBIterator {
