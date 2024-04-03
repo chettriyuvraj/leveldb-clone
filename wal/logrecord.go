@@ -49,6 +49,18 @@ func NewLogRecord(k, v []byte, op byte) (*LogRecord, error) {
 	return &LogRecord{key: k, val: v, op: op}, nil
 }
 
+func (record *LogRecord) Op() byte {
+	return record.op
+}
+
+func (record *LogRecord) Key() []byte {
+	return record.key
+}
+
+func (record *LogRecord) Val() []byte {
+	return record.val
+}
+
 func (record *LogRecord) MarshalBinary() (data []byte, err error) {
 	data = []byte{record.op}
 	data = binary.BigEndian.AppendUint32(data, uint32(len(record.key)))
