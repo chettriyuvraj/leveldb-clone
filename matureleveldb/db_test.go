@@ -19,7 +19,7 @@ func newLevelDBIteratorAsInterface(db common.DB) common.Iterator {
 
 func TestDB(t *testing.T) {
 	test.TestDB(t, test.DBTester{New: newLevelDBAsInterface})
-	// test.TestIterator(t, test.IteratorTester{New: newLevelDBIteratorAsInterface}, test.DBTester{New: newLevelDBAsInterface})
+	// test.TestIterator(t, test.IteratorTester{New: newLevelDBIteratorAsInterface}, test.DBTester{New: newLevelDBAsInterface}) /* This test is not valid as a stand-alone as iteratators are coupled to rangescan in this implementation */
 }
 
 func BenchmarkDB(b *testing.B) {
