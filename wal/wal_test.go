@@ -2,6 +2,7 @@ package wal
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 
@@ -35,13 +36,16 @@ func TestOpen(t *testing.T) {
 		{name: "WRONLY + TRUNC flag set", flag: WRONLY | TRUNC, expectedFileFlag: os.O_WRONLY | os.O_APPEND | os.O_TRUNC},
 	}
 
-	for _, tc := range tcs {
-		log, err := Open("test", tc.flag)
+	for i, tc := range tcs {
+		filename := fmt.Sprintf("test%d", i)
+		log, err := Open(filename, tc.flag)
+		defer os.Remove(filename)
 		if err != nil {
 			require.Error(t, err, tc.err)
 		} else {
 			require.Equal(t, tc.expectedFileFlag, log.fileFlag)
 		}
+
 	}
 }
 
@@ -56,12 +60,12 @@ func TestAppendAndReplay(t *testing.T) {
 	/* Test error: log not in WRONLY mode on append */
 	r1 := records[0]
 	err := log.Append(r1.key, r1.val, r1.op)
-	require.Error(t, err, ErrFileNotInWRONLYMode)
+	require.Error(t, err, ErrFileNotInWriteMode)
 
 	/* Test error: log not in RDONLY mode on append */
 	log.fileFlag = flagMappings[WRONLY]
 	_, err = log.Replay()
-	require.Error(t, err, ErrFileNotInRDONLYMode)
+	require.Error(t, err, ErrFileNotInReadMode)
 
 	/* Append to log and replay the same data successfully */
 	tcs := []struct {

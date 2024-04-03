@@ -18,14 +18,15 @@ type WALFlag byte
 var ErrOnlyOnePrimaryModeAllowed = errors.New("only one primary mode can be chosen")
 var ErrOnePrimaryModeRequired = errors.New("at least one primary mode must be chosen")
 var ErrInvalidPrimaryMode = errors.New("invalid primary mode")
-var ErrFileNotInWRONLYMode = errors.New("file not set to WRONLY mode")
-var ErrFileNotInRDONLYMode = errors.New("file not set to RDONLY mode")
+var ErrFileNotInWriteMode = errors.New("file not set to write mode")
+var ErrFileNotInReadMode = errors.New("file not set to read mode")
 var ErrNoUnderlyingFileForLog = errors.New("log does not have any underlying file")
 
 const (
 	/* These are primary flags - only 1 of them can be chosen */
 	RDONLY = WALFlag(0x01 << iota)
 	WRONLY /* NOTE: WRONLY exclusively appends */
+	RDWR
 	/* These are orModes - may be OR'd to form combinations */
 	CREATE
 	TRUNC
@@ -34,6 +35,7 @@ const (
 var flagMappings map[WALFlag]int = map[WALFlag]int{
 	RDONLY: os.O_RDONLY,
 	WRONLY: os.O_WRONLY | os.O_APPEND,
+	RDWR:   os.O_RDWR,
 	CREATE: os.O_CREATE,
 	TRUNC:  os.O_TRUNC,
 }
@@ -58,12 +60,12 @@ func Open(filename string, wf WALFlag) (*WAL, error) {
 
 func WALFlagToFileFlag(wf WALFlag) (int, error) {
 	/* Grab primary and or flags separately */
-	primary := wf & 0x03
-	or := wf & 0b11111100
+	primary := wf & 0b00000111
+	or := wf & 0b11111000
 	if primary == 0x00 {
 		return 0, ErrOnePrimaryModeRequired
 	}
-	if primary == 0x03 {
+	if primary != 0x01 && primary != 0x02 && primary != 0x04 {
 		return 0, ErrOnlyOnePrimaryModeAllowed
 	}
 
@@ -72,11 +74,11 @@ func WALFlagToFileFlag(wf WALFlag) (int, error) {
 	if !exists {
 		return 0, ErrInvalidPrimaryMode
 	}
-	switch {
-	case (or & CREATE) != 0:
+
+	if (or & CREATE) != 0 {
 		fileFlag |= flagMappings[CREATE]
-		fallthrough
-	case (or & TRUNC) != 0:
+	}
+	if (or & TRUNC) != 0 {
 		fileFlag |= flagMappings[TRUNC]
 	}
 
@@ -118,8 +120,12 @@ func (log *WAL) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	if log.fileFlag != appendFileFlag {
-		return 0, ErrFileNotInWRONLYMode
+	rdwrFileFlag, err := WALFlagToFileFlag(RDWR)
+	if err != nil {
+		return 0, err
+	}
+	if log.fileFlag != appendFileFlag && log.fileFlag != rdwrFileFlag {
+		return 0, ErrFileNotInWriteMode
 	}
 
 	return log.file.Write(b)
@@ -134,8 +140,12 @@ func (log *WAL) Replay() ([]LogRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	if log.fileFlag != readFileFlag {
-		return nil, ErrFileNotInRDONLYMode
+	rdwrFileFlag, err := WALFlagToFileFlag(RDWR)
+	if err != nil {
+		return nil, err
+	}
+	if log.fileFlag != readFileFlag && log.fileFlag != rdwrFileFlag {
+		return nil, ErrFileNotInReadMode
 	}
 
 	records := []LogRecord{}
