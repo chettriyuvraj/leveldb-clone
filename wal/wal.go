@@ -19,7 +19,7 @@ var ErrNoUnderlyingFileForLog = errors.New("log does not have any underlying fil
 func Open(filename string) (*WAL, error) {
 	log := WAL{filename: filename}
 
-	f, err := os.OpenFile(filename, os.O_RDWR, 0777) /* TODO: use lesser permissions */
+	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
 	if err != nil {
 		return nil, err
 	}
