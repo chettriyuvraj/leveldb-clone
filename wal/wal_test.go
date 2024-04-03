@@ -52,9 +52,9 @@ func TestOpen(t *testing.T) {
 func TestAppendAndReplay(t *testing.T) {
 	log := &WAL{fileFlag: os.O_RDONLY, file: &BytesBufferCloser{}}
 	records := []LogRecord{
-		{key: []byte("k1"), val: []byte("v1"), op: DELETE},
+		{key: []byte("k1"), val: nil, op: DELETE},
 		{key: []byte("k2"), val: []byte("v2"), op: PUT},
-		{key: []byte("k3"), val: []byte("v3"), op: DELETE},
+		{key: []byte("k3"), val: nil, op: DELETE},
 	}
 
 	/* Test error: log not in WRONLY mode on append */

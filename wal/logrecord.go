@@ -54,7 +54,9 @@ func (record *LogRecord) MarshalBinary() (data []byte, err error) {
 	data = binary.BigEndian.AppendUint32(data, uint32(len(record.key)))
 	data = append(data, record.key...)
 	data = binary.BigEndian.AppendUint32(data, uint32(len(record.val)))
-	data = append(data, record.val...)
+	if len(record.val) > 0 {
+		data = append(data, record.val...)
+	}
 	return data, nil
 }
 

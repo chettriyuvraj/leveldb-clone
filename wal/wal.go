@@ -198,6 +198,11 @@ func (log *WAL) Replay() ([]LogRecord, error) {
 		}
 		bytesRead += 4
 
+		if binary.BigEndian.Uint32(vLen) == 0 {
+			records = append(records, record)
+			continue
+		}
+
 		/* Read val */
 		val := make([]byte, binary.BigEndian.Uint32(vLen))
 		if _, err := log.file.Read(val); err != nil {
