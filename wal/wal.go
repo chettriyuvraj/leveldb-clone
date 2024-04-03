@@ -10,79 +10,22 @@ import (
 type WAL struct {
 	file     io.ReadWriteCloser /* Helpful for things like mocking */
 	filename string
-	fileFlag int
 }
 
 type WALFlag byte
 
-var ErrOnlyOnePrimaryModeAllowed = errors.New("only one primary mode can be chosen")
-var ErrOnePrimaryModeRequired = errors.New("at least one primary mode must be chosen")
-var ErrInvalidPrimaryMode = errors.New("invalid primary mode")
-var ErrFileNotInWriteMode = errors.New("file not set to write mode")
-var ErrFileNotInReadMode = errors.New("file not set to read mode")
 var ErrNoUnderlyingFileForLog = errors.New("log does not have any underlying file")
 
-const (
-	/* These are primary flags - only 1 of them can be chosen */
-	RDONLY = WALFlag(0x01 << iota)
-	WRONLY /* NOTE: WRONLY exclusively appends */
-	RDWR
-	/* These are orModes - may be OR'd to form combinations */
-	CREATE
-	TRUNC
-)
-
-var flagMappings map[WALFlag]int = map[WALFlag]int{
-	RDONLY: os.O_RDONLY,
-	WRONLY: os.O_WRONLY | os.O_APPEND,
-	RDWR:   os.O_RDWR,
-	CREATE: os.O_CREATE,
-	TRUNC:  os.O_TRUNC,
-}
-
-func Open(filename string, wf WALFlag) (*WAL, error) {
+func Open(filename string) (*WAL, error) {
 	log := WAL{filename: filename}
 
-	fileFlag, err := WALFlagToFileFlag(wf)
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := os.OpenFile(filename, fileFlag, 0x777) /* TODO: use lesser permissions */
+	f, err := os.OpenFile(filename, os.O_RDWR, 0777) /* TODO: use lesser permissions */
 	if err != nil {
 		return nil, err
 	}
 	log.file = f
-	log.fileFlag = fileFlag
 
 	return &log, nil
-}
-
-func WALFlagToFileFlag(wf WALFlag) (int, error) {
-	/* Grab primary and or flags separately */
-	primary := wf & 0b00000111
-	or := wf & 0b11111000
-	if primary == 0x00 {
-		return 0, ErrOnePrimaryModeRequired
-	}
-	if primary != 0x01 && primary != 0x02 && primary != 0x04 {
-		return 0, ErrOnlyOnePrimaryModeAllowed
-	}
-
-	/* Convert */
-	fileFlag, exists := flagMappings[primary]
-	if !exists {
-		return 0, ErrInvalidPrimaryMode
-	}
-
-	if (or & CREATE) != 0 {
-		fileFlag |= flagMappings[CREATE]
-	}
-	if (or & TRUNC) != 0 {
-		fileFlag |= flagMappings[TRUNC]
-	}
-
-	return fileFlag, nil
 }
 
 func (log *WAL) Append(k, v []byte, op byte) error {
@@ -116,36 +59,12 @@ func (log *WAL) Write(b []byte) (n int, err error) {
 		return 0, ErrNoUnderlyingFileForLog
 	}
 
-	appendFileFlag, err := WALFlagToFileFlag(WRONLY)
-	if err != nil {
-		return 0, err
-	}
-	rdwrFileFlag, err := WALFlagToFileFlag(RDWR)
-	if err != nil {
-		return 0, err
-	}
-	if log.fileFlag != appendFileFlag && log.fileFlag != rdwrFileFlag {
-		return 0, ErrFileNotInWriteMode
-	}
-
 	return log.file.Write(b)
 }
 
 func (log *WAL) Replay() ([]LogRecord, error) {
 	if log.file == nil {
 		return nil, ErrNoUnderlyingFileForLog
-	}
-
-	readFileFlag, err := WALFlagToFileFlag(RDONLY)
-	if err != nil {
-		return nil, err
-	}
-	rdwrFileFlag, err := WALFlagToFileFlag(RDWR)
-	if err != nil {
-		return nil, err
-	}
-	if log.fileFlag != readFileFlag && log.fileFlag != rdwrFileFlag {
-		return nil, ErrFileNotInReadMode
 	}
 
 	records := []LogRecord{}
