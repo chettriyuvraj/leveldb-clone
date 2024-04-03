@@ -13,7 +13,7 @@ import (
 const (
 	P                  = 0.25
 	MAXLEVEL           = 12
-	DEFAULTWALFILENAME = "wal"
+	DEFAULTWALFILENAME = "log"
 )
 
 type LevelDB struct {
