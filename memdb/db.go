@@ -3,11 +3,9 @@ package memdb
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/chettriyuvraj/leveldb-clone/skiplist"
-	"github.com/chettriyuvraj/leveldb-clone/wal"
 )
 
 const (
@@ -18,7 +16,6 @@ const (
 
 type MemDB struct {
 	skiplist.SkipList
-	log *wal.WAL
 }
 type MemDBIterator struct {
 	*MemDB
@@ -33,16 +30,7 @@ func (db *MemDB) String() string {
 }
 
 func NewMemDB() (*MemDB, error) {
-	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}, nil
-}
-
-func (db *MemDB) AttachWAL(filename string) error {
-	log, err := wal.Open(filename)
-	if err != nil {
-		return err
-	}
-	db.log = log
-	return nil
+	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL)}, nil
 }
 
 func (db *MemDB) Get(key []byte) (val []byte, err error) {
@@ -62,13 +50,6 @@ func (db *MemDB) Has(key []byte) (ret bool, err error) {
 }
 
 func (db *MemDB) Put(key, val []byte) error {
-	if db.log != nil {
-		err := db.log.Append(key, val, wal.PUT)
-		if err != nil {
-			return fmt.Errorf("error appending PUT to WAL")
-		}
-	}
-
 	if err := db.Insert(key, val); err != nil {
 		return err
 	}
@@ -76,13 +57,6 @@ func (db *MemDB) Put(key, val []byte) error {
 }
 
 func (db *MemDB) Delete(key []byte) error {
-	if db.log != nil {
-		err := db.log.Append(key, nil, wal.DELETE)
-		if err != nil {
-			return fmt.Errorf("error appending DELETE to WAL")
-		}
-	}
-
 	if err := db.SkipList.Delete(key); err != nil { /* Not using embedded skiplist method here directly as it is the same as db method name (Delete) */
 		if errors.Is(err, skiplist.ErrKeyDoesNotExist) {
 			return common.ErrKeyDoesNotExist
@@ -92,45 +66,9 @@ func (db *MemDB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *MemDB) Close() error {
-	if db.log == nil {
-		return nil
-	}
-	return db.log.Close()
-}
-
 func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	iter := NewMemDBIterator(db, start, limit)
 	return iter, iter.Error()
-}
-
-/* Note: This DB must have it's log field set to nil, otherwise it will record each operation from our WAL replay as well */
-func (db *MemDB) Replay(WALFileName string) error {
-	log, err := wal.Open(WALFileName)
-	if err != nil {
-		return fmt.Errorf("error opening wal file: %w", err)
-	}
-
-	records, err := log.Replay()
-	if err != nil {
-		return fmt.Errorf("error replaying records from wal file: %w", err)
-	}
-	for _, record := range records {
-		op := record.Op()
-		switch op {
-		case wal.PUT:
-			err := db.Put(record.Key(), record.Val())
-			if err != nil {
-				return fmt.Errorf("error replaying records from wal file: %w", err)
-			}
-		case wal.DELETE:
-			err := db.Delete(record.Key())
-			if err != nil {
-				return fmt.Errorf("error replaying records from wal file: %w", err)
-			}
-		}
-	}
-	return nil
 }
 
 func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {

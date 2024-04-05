@@ -6,7 +6,6 @@ require (
 	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240403115846-26a9c2864729
 	github.com/chettriyuvraj/leveldb-clone/skiplist v0.0.0-20240403115846-26a9c2864729
 	github.com/chettriyuvraj/leveldb-clone/test v0.0.0-00010101000000-000000000000
-	github.com/chettriyuvraj/leveldb-clone/wal v0.0.0-20240403115846-26a9c2864729
 	github.com/stretchr/testify v1.9.0
 )
 
@@ -17,8 +16,6 @@ require (
 )
 
 replace github.com/chettriyuvraj/leveldb-clone/test => ../test
-
-replace github.com/chettriyuvraj/leveldb-clone/wal => ../wal
 
 replace github.com/chettriyuvraj/leveldb-clone/skiplist => ../skiplist
 
