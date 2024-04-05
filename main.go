@@ -8,22 +8,21 @@ import (
 	"os"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
-	"github.com/chettriyuvraj/leveldb-clone/memdb"
+	"github.com/chettriyuvraj/leveldb-clone/db"
 )
 
 func main() {
-	db, err := memdb.NewLevelDB()
+	db, err := db.NewDB()
 	if err != nil {
 		fmt.Printf("error initializing DB: %v", err)
 		return
 	}
 	defer db.Close()
-	err = db.AttachWAL(memdb.DEFAULTWALFILENAME)
 	if err != nil {
 		fmt.Printf("error attaching WAL: %v", err)
 		return
 	}
-	err = db.Replay(memdb.DEFAULTWALFILENAME)
+	err = db.Replay()
 	if err != nil {
 		fmt.Printf("error replaying data from WAL: %v", err)
 		return
