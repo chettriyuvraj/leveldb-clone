@@ -16,27 +16,27 @@ const (
 	DEFAULTWALFILENAME = "log"
 )
 
-type LevelDB struct {
+type MemDB struct {
 	skiplist.SkipList
 	log *wal.WAL
 }
-type LevelDBIterator struct {
-	*LevelDB
+type MemDBIterator struct {
+	*MemDB
 	startKey, limitKey []byte
 	curNode            *skiplist.Node
 	hasEnded           bool
 	err                error
 }
 
-func (db *LevelDB) String() string {
+func (db *MemDB) String() string {
 	return db.SkipList.String()
 }
 
-func NewLevelDB() (*LevelDB, error) {
-	return &LevelDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}, nil
+func NewMemDB() (*MemDB, error) {
+	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}, nil
 }
 
-func (db *LevelDB) AttachWAL(filename string) error {
+func (db *MemDB) AttachWAL(filename string) error {
 	log, err := wal.Open(filename)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (db *LevelDB) AttachWAL(filename string) error {
 	return nil
 }
 
-func (db *LevelDB) Get(key []byte) (val []byte, err error) {
+func (db *MemDB) Get(key []byte) (val []byte, err error) {
 	node := db.Search(key)
 	if node == nil {
 		return nil, common.ErrKeyDoesNotExist
@@ -53,7 +53,7 @@ func (db *LevelDB) Get(key []byte) (val []byte, err error) {
 	return node.Val(), nil
 }
 
-func (db *LevelDB) Has(key []byte) (ret bool, err error) {
+func (db *MemDB) Has(key []byte) (ret bool, err error) {
 	node := db.Search(key)
 	if node == nil {
 		return false, nil
@@ -61,7 +61,7 @@ func (db *LevelDB) Has(key []byte) (ret bool, err error) {
 	return true, nil
 }
 
-func (db *LevelDB) Put(key, val []byte) error {
+func (db *MemDB) Put(key, val []byte) error {
 	if db.log != nil {
 		err := db.log.Append(key, val, wal.PUT)
 		if err != nil {
@@ -75,7 +75,7 @@ func (db *LevelDB) Put(key, val []byte) error {
 	return nil
 }
 
-func (db *LevelDB) Delete(key []byte) error {
+func (db *MemDB) Delete(key []byte) error {
 	if db.log != nil {
 		err := db.log.Append(key, nil, wal.DELETE)
 		if err != nil {
@@ -92,20 +92,20 @@ func (db *LevelDB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *LevelDB) Close() error {
+func (db *MemDB) Close() error {
 	if db.log == nil {
 		return nil
 	}
 	return db.log.Close()
 }
 
-func (db *LevelDB) RangeScan(start, limit []byte) (common.Iterator, error) {
-	iter := NewLevelDBIterator(db, start, limit)
+func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
+	iter := NewMemDBIterator(db, start, limit)
 	return iter, iter.Error()
 }
 
 /* Note: This DB must have it's log field set to nil, otherwise it will record each operation from our WAL replay as well */
-func (db *LevelDB) Replay(WALFileName string) error {
+func (db *MemDB) Replay(WALFileName string) error {
 	log, err := wal.Open(WALFileName)
 	if err != nil {
 		return fmt.Errorf("error opening wal file: %w", err)
@@ -133,8 +133,8 @@ func (db *LevelDB) Replay(WALFileName string) error {
 	return nil
 }
 
-func NewLevelDBIterator(db *LevelDB, startKey, limitKey []byte) *LevelDBIterator {
-	iter := LevelDBIterator{LevelDB: db, startKey: startKey, limitKey: limitKey}
+func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
+	iter := MemDBIterator{MemDB: db, startKey: startKey, limitKey: limitKey}
 
 	if bytes.Compare(startKey, limitKey) > 0 {
 		iter.err = common.ErrInvalidRange
@@ -152,9 +152,9 @@ func NewLevelDBIterator(db *LevelDB, startKey, limitKey []byte) *LevelDBIterator
 }
 
 /*
-- Assuming iter always initialized using NewLevelDBIterator func so all constraints defined there hold
+- Assuming iter always initialized using NewMemDBIterator func so all constraints defined there hold
 */
-func (iter *LevelDBIterator) Next() bool {
+func (iter *MemDBIterator) Next() bool {
 	if iter.hasEnded {
 		return false
 	}
@@ -169,20 +169,20 @@ func (iter *LevelDBIterator) Next() bool {
 	return true
 }
 
-func (iter *LevelDBIterator) Key() []byte {
+func (iter *MemDBIterator) Key() []byte {
 	if iter.hasEnded || iter.err != nil || iter.curNode == nil {
 		return nil
 	}
 	return iter.curNode.Key()
 }
 
-func (iter *LevelDBIterator) Value() []byte {
+func (iter *MemDBIterator) Value() []byte {
 	if iter.hasEnded || iter.err != nil || iter.curNode == nil {
 		return nil
 	}
 	return iter.curNode.Val()
 }
 
-func (iter *LevelDBIterator) Error() error {
+func (iter *MemDBIterator) Error() error {
 	return iter.err
 }

@@ -12,21 +12,21 @@ import (
 )
 
 /* Workaround done exclusively to match signature with test suite */
-func newLevelDBAsInterface() common.DB {
-	return &LevelDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}
+func newMemDBAsInterface() common.DB {
+	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL), nil}
 }
 
-func newLevelDBIteratorAsInterface(db common.DB) common.Iterator {
-	return &LevelDBIterator{LevelDB: db.(*LevelDB)}
+func newMemDBIteratorAsInterface(db common.DB) common.Iterator {
+	return &MemDBIterator{MemDB: db.(*MemDB)}
 }
 
 func TestDB(t *testing.T) {
-	test.TestDB(t, test.DBTester{New: newLevelDBAsInterface})
-	// test.TestIterator(t, test.IteratorTester{New: newLevelDBIteratorAsInterface}, test.DBTester{New: newLevelDBAsInterface}) /* This test is not valid as a stand-alone as iteratators are coupled to rangescan in this implementation */
+	test.TestDB(t, test.DBTester{New: newMemDBAsInterface})
+	// test.TestIterator(t, test.IteratorTester{New: newMemDBIteratorAsInterface}, test.DBTester{New: newMemDBAsInterface}) /* This test is not valid as a stand-alone as iteratators are coupled to rangescan in this implementation */
 }
 
 func BenchmarkDB(b *testing.B) {
-	test.BenchmarkDB(b, test.DBTester{New: newLevelDBAsInterface})
+	test.BenchmarkDB(b, test.DBTester{New: newMemDBAsInterface})
 }
 
 /* Implementation specific tests */
@@ -36,7 +36,7 @@ func TestWAL(t *testing.T) {
 	wd = fmt.Sprintf("%s/%s", wd, DEFAULTWALFILENAME)
 
 	/* Init db1 and attach a WAL */
-	db1, err := NewLevelDB()
+	db1, err := NewMemDB()
 	require.NoError(t, err)
 	err = db1.AttachWAL(wd)
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestWAL(t *testing.T) {
 	db1.Delete([]byte("k4"))
 
 	/* Use the same WAL to populate db2 */
-	db2, err := NewLevelDB()
+	db2, err := NewMemDB()
 	require.NoError(t, err)
 	defer db2.Close()
 	err = db2.Replay(wd)
