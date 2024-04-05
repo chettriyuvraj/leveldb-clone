@@ -3,7 +3,7 @@ module github.com/chettriyuvraj/leveldb-clone/db
 go 1.20
 
 require (
-	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-00010101000000-000000000000
+	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240405203313-e1ded512338c
 	github.com/chettriyuvraj/leveldb-clone/test v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.9.0
 )
