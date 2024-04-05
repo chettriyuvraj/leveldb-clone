@@ -1,4 +1,4 @@
-package matureleveldb
+package memdb
 
 import (
 	"fmt"
