@@ -2,29 +2,48 @@ package main
 
 func main() {
 
-	/* Check what files are created */
+	/*** Add multiple records and check ***/
 	// testDBWithSomeData := func() {
 	// 	db, err := leveldb.OpenFile("./db/", nil)
+	// defer db.Close()
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// defer db.Close()
+	// 	for i := 0; i < 1000000; i++ {
+	// 		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
+	// 		err = db.Put(k, v, nil)
+	// 		if err != nil {
+	// 			fmt.Println(err)
+	// 		}
+	// 	}
+	// }
+	// testDBWithSomeData()
+
+	/*** Add small number of records and check ***/
+	// testDBWithLittleData := func() {
+	// 	db, err := leveldb.OpenFile("./db2/", nil)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 	}
 	// 	defer db.Close()
+
+	// 	err = db.Put([]byte("trash"), []byte("dustbin"), nil)
 	// 	if err != nil {
 	// 		fmt.Println(err)
 	// 	}
 
-	// 	err = db.Put([]byte("bested2"), []byte("valuebested"), nil)
+	// 	err = db.Put([]byte("casy"), []byte("ne"), nil)
 	// 	if err != nil {
 	// 		fmt.Println(err)
 	// 	}
 
-	// 	err = db.Put([]byte("casted2"), []byte("valuecasted"), nil)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 	}
-
-	// 	err = db.Put([]byte("aested2"), []byte("valueaested"), nil)
+	// 	err = db.Put([]byte("aesthetic"), []byte("che"), nil)
 	// 	if err != nil {
 	// 		fmt.Println(err)
 	// 	}
 	// }
+	// testDBWithLittleData()
 
 	/* Sample of what my skiplist looks like */
 	// displaySkipListSample := func() {
