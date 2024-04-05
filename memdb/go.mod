@@ -3,8 +3,8 @@ module github.com/chettriyuvraj/leveldb-clone/memdb
 go 1.20
 
 require (
-	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240405203313-e1ded512338c
-	github.com/chettriyuvraj/leveldb-clone/skiplist v0.0.0-20240403115846-26a9c2864729
+	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240405210930-07a368b3ecdc
+	github.com/chettriyuvraj/leveldb-clone/skiplist v0.0.0-20240405210930-07a368b3ecdc
 	github.com/chettriyuvraj/leveldb-clone/test v0.0.0-00010101000000-000000000000
 )
 
