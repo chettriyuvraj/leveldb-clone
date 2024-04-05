@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+
+	"github.com/chettriyuvraj/leveldb-clone/common"
 )
 
 var ErrInvalidNodeLevel = errors.New("invalid node level")
-var ErrKeyDoesNotExist = errors.New("key does not exist")
 
 type Node struct {
 	key, val []byte
@@ -258,7 +259,7 @@ func (sl *SkipList) Delete(key []byte) error {
 	/* If key doesn't exists */
 	nodeAhead := node.forward[1]
 	if sl.compareKey(dummySearchNode, nodeAhead) != 0 {
-		return ErrKeyDoesNotExist
+		return common.ErrKeyDoesNotExist
 	}
 
 	/* Else delete node and modify level if level changed */
