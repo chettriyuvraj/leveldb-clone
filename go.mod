@@ -4,9 +4,9 @@ go 1.20
 
 replace github.com/chettriyuvraj/leveldb-clone/wal => ./wal
 
-replace github.com/chettriyuvraj/leveldb-clone/matureleveldb => ./matureleveldb
+replace github.com/chettriyuvraj/leveldb-clone/memdb => ./memdb
 
-require github.com/chettriyuvraj/leveldb-clone/matureleveldb v0.0.0-00010101000000-000000000000
+require github.com/chettriyuvraj/leveldb-clone/memdb v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240403115846-26a9c2864729 // indirect
