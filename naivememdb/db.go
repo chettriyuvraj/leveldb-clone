@@ -1,4 +1,4 @@
-package naiveleveldb
+package naivememdb
 
 import (
 	"bytes"
@@ -8,8 +8,8 @@ import (
 	"github.com/chettriyuvraj/leveldb-clone/common"
 )
 
-type LevelDBIterator struct {
-	*LevelDB
+type MemDBIterator struct {
+	*MemDB
 	err error
 	idx int
 }
@@ -18,19 +18,19 @@ type DBEntry struct {
 	key, val []byte
 }
 
-type LevelDB struct {
+type MemDB struct {
 	entries []*DBEntry
 }
 
-func NewLevelDB() *LevelDB {
-	return &LevelDB{entries: []*DBEntry{}}
+func NewMemDB() *MemDB {
+	return &MemDB{entries: []*DBEntry{}}
 }
 
 func newDBEntry(key, val []byte) *DBEntry {
 	return &DBEntry{key: key, val: val}
 }
 
-func (db *LevelDB) Get(key []byte) (val []byte, err error) {
+func (db *MemDB) Get(key []byte) (val []byte, err error) {
 	entry, _, err := db.getDBEntry(key)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (db *LevelDB) Get(key []byte) (val []byte, err error) {
 }
 
 /* Wrapper around Get */
-func (db *LevelDB) Has(key []byte) (ret bool, err error) {
+func (db *MemDB) Has(key []byte) (ret bool, err error) {
 	_, err = db.Get(key)
 	if err != nil {
 		if errors.Is(err, common.ErrKeyDoesNotExist) {
@@ -52,7 +52,7 @@ func (db *LevelDB) Has(key []byte) (ret bool, err error) {
 	return true, nil
 }
 
-func (db *LevelDB) Put(key, val []byte) error {
+func (db *MemDB) Put(key, val []byte) error {
 	entry, _, err := db.getDBEntry(key)
 	if err != nil {
 		if errors.Is(err, common.ErrKeyDoesNotExist) {
@@ -68,7 +68,7 @@ func (db *LevelDB) Put(key, val []byte) error {
 	return nil
 }
 
-func (db *LevelDB) Delete(key []byte) error {
+func (db *MemDB) Delete(key []byte) error {
 	_, i, err := db.getDBEntry(key)
 	if err != nil {
 		return err
@@ -78,14 +78,14 @@ func (db *LevelDB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *LevelDB) RangeScan(start, limit []byte) (common.Iterator, error) {
+func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	if bytes.Compare(start, limit) > 0 {
 		return nil, common.ErrInvalidRange
 	}
 
 	startIdx, endIdx := 0, len(db.entries)
 	startFound, endFound := false, false
-	iter := NewLevelDBIterator(NewLevelDB())
+	iter := NewMemDBIterator(NewMemDB())
 	for i := 0; i < len(db.entries) && !(startFound && endFound); i++ {
 
 		if !startFound {
@@ -112,7 +112,7 @@ func (db *LevelDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	return iter, nil
 }
 
-func (db *LevelDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
+func (db *MemDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
 	for i, entry := range db.entries {
 		if bytes.Equal(key, entry.key) {
 			return entry, i, nil
@@ -122,7 +122,7 @@ func (db *LevelDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
 	return nil, -1, common.ErrKeyDoesNotExist
 }
 
-func (db *LevelDB) getDBEntryByIdx(idx int) (entry *DBEntry, err error) {
+func (db *MemDB) getDBEntryByIdx(idx int) (entry *DBEntry, err error) {
 	if idx < 0 || idx >= len(db.entries) {
 		return nil, common.ErrIdxOutOfBounds
 	}
@@ -130,11 +130,11 @@ func (db *LevelDB) getDBEntryByIdx(idx int) (entry *DBEntry, err error) {
 	return db.entries[idx], nil
 }
 
-func NewLevelDBIterator(db *LevelDB) *LevelDBIterator {
-	return &LevelDBIterator{LevelDB: db, idx: 0}
+func NewMemDBIterator(db *MemDB) *MemDBIterator {
+	return &MemDBIterator{MemDB: db, idx: 0}
 }
 
-func (iter *LevelDBIterator) Next() bool {
+func (iter *MemDBIterator) Next() bool {
 	if iter.idx >= len(iter.entries) {
 		return false
 	}
@@ -147,11 +147,11 @@ func (iter *LevelDBIterator) Next() bool {
 	return true
 }
 
-func (iter *LevelDBIterator) Error() error {
+func (iter *MemDBIterator) Error() error {
 	return iter.err
 }
 
-func (iter *LevelDBIterator) Key() []byte {
+func (iter *MemDBIterator) Key() []byte {
 	entry, err := iter.getDBEntryByIdx(iter.idx)
 	if err != nil {
 		if errors.Is(err, common.ErrIdxOutOfBounds) {
@@ -164,7 +164,7 @@ func (iter *LevelDBIterator) Key() []byte {
 	return entry.key
 }
 
-func (iter *LevelDBIterator) Value() []byte {
+func (iter *MemDBIterator) Value() []byte {
 	entry, err := iter.getDBEntryByIdx(iter.idx)
 	if err != nil {
 		if errors.Is(err, common.ErrIdxOutOfBounds) {
