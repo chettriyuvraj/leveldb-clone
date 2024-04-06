@@ -18,9 +18,9 @@ func testIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester
 	iterations := 10
 
 	/* Test Empty Iterator */
-	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, nil, false)
-	iteratorTestVal(t, iterator, nil, false)
+	IteratorTestNext(t, iterator, false, false)
+	IteratorTestKey(t, iterator, nil, false)
+	IteratorTestVal(t, iterator, nil, false)
 
 	/* Populate db */
 	for i := 0; i < iterations; i++ {
@@ -32,23 +32,23 @@ func testIteratorNext(t *testing.T, testerIter IteratorTester, testerDB DBTester
 	/* Move iterator over all values and check that they exist + are correct + no errors */
 	for i := 0; i < iterations; i++ {
 		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		iteratorTestKey(t, iterator, keyExpected, false)
-		iteratorTestVal(t, iterator, valExpected, false)
+		IteratorTestKey(t, iterator, keyExpected, false)
+		IteratorTestVal(t, iterator, valExpected, false)
 		if i < iterations-1 {
-			iteratorTestNext(t, iterator, true, false)
+			IteratorTestNext(t, iterator, true, false)
 		} else {
-			iteratorTestNext(t, iterator, false, false)
+			IteratorTestNext(t, iterator, false, false)
 		}
 	}
 
 	/* After all values are exhausted 1st two checks already tested in last iteration of loop, just keeping both checks to be consistent */
-	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, nil, false)
-	iteratorTestVal(t, iterator, nil, false)
+	IteratorTestNext(t, iterator, false, false)
+	IteratorTestKey(t, iterator, nil, false)
+	IteratorTestVal(t, iterator, nil, false)
 }
 
 /* NOTE: This will potentially modify the iterator by calling Next() */
-func iteratorTestNext(t *testing.T, iterator common.Iterator, existsWant bool, errWant bool) {
+func IteratorTestNext(t *testing.T, iterator common.Iterator, existsWant bool, errWant bool) {
 	t.Helper()
 	exists, err := iterator.Next(), iterator.Error()
 	require.Equal(t, existsWant, exists)
@@ -59,7 +59,7 @@ func iteratorTestNext(t *testing.T, iterator common.Iterator, existsWant bool, e
 	}
 }
 
-func iteratorTestKey(t *testing.T, iterator common.Iterator, keyWant []byte, errWant bool) {
+func IteratorTestKey(t *testing.T, iterator common.Iterator, keyWant []byte, errWant bool) {
 	t.Helper()
 	keyGot, err := iterator.Key(), iterator.Error()
 	require.Equal(t, keyWant, keyGot)
@@ -70,7 +70,7 @@ func iteratorTestKey(t *testing.T, iterator common.Iterator, keyWant []byte, err
 	}
 }
 
-func iteratorTestVal(t *testing.T, iterator common.Iterator, valWant []byte, errWant bool) {
+func IteratorTestVal(t *testing.T, iterator common.Iterator, valWant []byte, errWant bool) {
 	t.Helper()
 	t.Helper()
 	valGot, err := iterator.Value(), iterator.Error()

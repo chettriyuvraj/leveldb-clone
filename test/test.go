@@ -121,17 +121,17 @@ func testRangeScan(t *testing.T, tester DBTester) {
 	require.NoError(t, err)
 	for i := 1; i <= 9; i += 2 {
 		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		iteratorTestKey(t, iterator, keyExpected, false)
-		iteratorTestVal(t, iterator, valExpected, false)
+		IteratorTestKey(t, iterator, keyExpected, false)
+		IteratorTestVal(t, iterator, valExpected, false)
 		if i < iterations {
-			iteratorTestNext(t, iterator, true, false)
+			IteratorTestNext(t, iterator, true, false)
 		} else {
-			iteratorTestNext(t, iterator, false, false)
+			IteratorTestNext(t, iterator, false, false)
 		}
 	}
-	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, nil, false)
-	iteratorTestVal(t, iterator, nil, false)
+	IteratorTestNext(t, iterator, false, false)
+	IteratorTestKey(t, iterator, nil, false)
+	IteratorTestVal(t, iterator, nil, false)
 
 	/* Check inexact ranges + confirm if values exhausted afterwards */
 	start, end = []byte("key"), []byte("key8")
@@ -139,17 +139,17 @@ func testRangeScan(t *testing.T, tester DBTester) {
 	require.NoError(t, err)
 	for i := 1; i <= 7; i += 2 {
 		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		iteratorTestKey(t, iterator, keyExpected, false)
-		iteratorTestVal(t, iterator, valExpected, false)
+		IteratorTestKey(t, iterator, keyExpected, false)
+		IteratorTestVal(t, iterator, valExpected, false)
 		if i < 7 {
-			iteratorTestNext(t, iterator, true, false)
+			IteratorTestNext(t, iterator, true, false)
 		} else {
-			iteratorTestNext(t, iterator, false, false)
+			IteratorTestNext(t, iterator, false, false)
 		}
 	}
-	iteratorTestNext(t, iterator, false, false)
-	iteratorTestKey(t, iterator, nil, false)
-	iteratorTestVal(t, iterator, nil, false)
+	IteratorTestNext(t, iterator, false, false)
+	IteratorTestKey(t, iterator, nil, false)
+	IteratorTestVal(t, iterator, nil, false)
 }
 
 func benchmarkPut(b *testing.B, tester DBTester) {
