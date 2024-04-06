@@ -71,10 +71,15 @@ func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	return iter, iter.Error()
 }
 
+func (db *MemDB) FullScan() (common.Iterator, error) {
+	iter := NewMemDBIterator(db, db.FirstKey(), nil)
+	return iter, iter.Error()
+}
+
 func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
 	iter := MemDBIterator{MemDB: db, startKey: startKey, limitKey: limitKey}
 
-	if bytes.Compare(startKey, limitKey) > 0 {
+	if bytes.Compare(startKey, limitKey) > 0 && limitKey != nil {
 		iter.err = common.ErrInvalidRange
 		return &iter
 	}
@@ -98,6 +103,12 @@ func (iter *MemDBIterator) Next() bool {
 	}
 
 	iter.curNode = iter.curNode.GetAdjacent()
+
+	/* limitKey -> nil indicates scan till end of range */
+	if iter.limitKey == nil && iter.curNode != nil {
+		return true
+	}
+
 	if iter.curNode == nil || bytes.Compare(iter.curNode.Key(), iter.limitKey) > 0 {
 		iter.curNode = nil
 		iter.hasEnded = true

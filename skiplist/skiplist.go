@@ -104,6 +104,10 @@ func (sl *SkipList) String() string {
 	return sb.String()
 }
 
+func (sl *SkipList) FirstKey() []byte {
+	return sl.head.forward[1].key
+}
+
 func (sl *SkipList) Nil() *Node {
 	return sl.nil
 }
