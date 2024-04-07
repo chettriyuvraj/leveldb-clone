@@ -2,20 +2,11 @@ module github.com/chettriyuvraj/leveldb-clone
 
 go 1.20
 
-replace github.com/chettriyuvraj/leveldb-clone/wal => ./wal
-
-replace github.com/chettriyuvraj/leveldb-clone/memdb => ./memdb
-
 require (
-	github.com/chettriyuvraj/leveldb-clone/common v0.0.0-20240405214557-ebb9500fb244
-	github.com/chettriyuvraj/leveldb-clone/db v0.0.0-00010101000000-000000000000
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/stretchr/testify v1.9.0 // indirect
+	github.com/syndtr/goleveldb v1.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-require (
-	github.com/chettriyuvraj/leveldb-clone/memdb v0.0.0-20240405214557-ebb9500fb244 // indirect
-	github.com/chettriyuvraj/leveldb-clone/skiplist v0.0.0-20240405214557-ebb9500fb244 // indirect
-	github.com/chettriyuvraj/leveldb-clone/test v0.0.0-20240403115846-26a9c2864729 // indirect
-	github.com/chettriyuvraj/leveldb-clone/wal v0.0.0-20240405214557-ebb9500fb244 // indirect
-)
-
-replace github.com/chettriyuvraj/leveldb-clone/db => ./db
