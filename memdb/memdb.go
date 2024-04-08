@@ -115,7 +115,7 @@ SSTable notes:
 SSTableFormat:
 1. 0-7 bytes: offset to start of 'directory'
 2. [start of data] [key_length(4 bytes):key:val_length(4 bytes):val] x Number of keys
-3. [start of directory] [key:key_offset(8 bytes)] x Number of keys
+3. [start of directory] [key_length(4 bytes):key:key_offset(8 bytes)] x Number of keys
 */
 
 func (db *MemDB) getSSTableData() (data []byte, err error) {
@@ -124,6 +124,7 @@ func (db *MemDB) getSSTableData() (data []byte, err error) {
 		return nil, fmt.Errorf("error getting SSTable: %w", err)
 	}
 
+	/* Scan all entries in sorted order + keep track of their offsets + construct SSTable */
 	dir := SSTableDirectory{}
 	curOffset := 8
 	for {
@@ -153,14 +154,20 @@ func (db *MemDB) getSSTableData() (data []byte, err error) {
 		return nil, ErrNoSSTableDataToWrite
 	}
 
-	/* Dir offset + kv data */
+	/* Note the offset at which directory starts + construct the directory for SSTable  */
 	dirOffset := binary.BigEndian.AppendUint64([]byte{}, uint64(curOffset))
-	data = append(dirOffset, data...)
-	/* Add dir data for each key */
-	for _, e := range dir.entries {
-		dirData := append(e.key, binary.BigEndian.AppendUint64([]byte{}, e.offset)...)
-		data = append(data, dirData...)
+	dirData := []byte{}
+	for _, entry := range dir.entries {
+		keyLen := binary.BigEndian.AppendUint32([]byte{}, uint32(len(entry.key)))
+		keyOffset := binary.BigEndian.AppendUint64([]byte{}, entry.offset)
+		dirData = append(dirData, keyLen...)
+		dirData = append(dirData, entry.key...)
+		dirData = append(dirData, keyOffset...)
 	}
+
+	/* Combine directoryOffset:SSTableData:directory */
+	data = append(dirOffset, data...)
+	data = append(data, dirData...)
 
 	return data, nil
 

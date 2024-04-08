@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"testing"
 
@@ -74,15 +75,25 @@ func TestGetSSTableData(t *testing.T) {
 	_, err = db.getSSTableData()
 	require.Error(t, err, ErrNoSSTableDataToWrite)
 
-	/* Populate db */
-	k1, v1 := []byte("comp"), []byte("computers")
-	err = db.Put(k1, v1)
-	require.NoError(t, err)
-	k2, v2 := []byte("extc"), []byte{}
-	err = db.Put(k2, v2)
-	require.NoError(t, err)
+	/* Populate db + compute expected result by hand in duumySSTableData func */
+	records, expectedSSTableData, _ := dummySSTableData()
+	for _, record := range records {
+		err = db.Put(record.k, record.v)
+		require.NoError(t, err)
+	}
 
-	/* Compute expected result by hand and then compare */
+	got, err := db.getSSTableData()
+	require.NoError(t, err)
+	require.Equal(t, expectedSSTableData, got)
+
+}
+
+/*
+- Hand-computed data for testing
+*/
+func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []byte, dir SSTableDirectory) {
+	k1, v1 := []byte("comp"), []byte("computers")
+	k2, v2 := []byte("extc"), []byte{}
 
 	/* Compute key:val data by hand */
 	k1len := []byte{0x00, 0x00, 0x00, 0x04}
@@ -98,15 +109,21 @@ func TestGetSSTableData(t *testing.T) {
 	kvData := append(kvData1, kvData2...)
 	dirOffset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29} /* 41 -> len(kvData) + 8 bytes for dirOffset at the start */
 	/* Compute directory data */
-	d1 := append(k1, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08}...) /* k1 : starting offset of k1 */
-	d2 := append(k2, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1D}...) /* k2 : starting offset of k2  -> (8+21)*/
-	dir := append(d1, d2...)
+	k1Offset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08}
+	k2Offset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1D} /* (8 + 21) since the first 8 bytes include the dirOffset */
+	d1 := append(k1len, append(k1, k1Offset...)...)
+	d2 := append(k2len, append(k2, k2Offset...)...)
+	encodedDir := append(d1, d2...)
 	/* Combine */
 	e1 := append(dirOffset, kvData...)
-	expected := append(e1, dir...)
+	expected := append(e1, encodedDir...)
 
-	got, err := db.getSSTableData()
-	require.NoError(t, err)
-	require.Equal(t, expected, got)
+	dir = SSTableDirectory{
+		entries: []SSTableDirEntry{
+			{k1, binary.BigEndian.Uint64(k1Offset[:])},
+			{k2, binary.BigEndian.Uint64(k2Offset[:])},
+		},
+	}
 
+	return []struct{ k, v []byte }{{k1, v1}, {k2, v2}}, expected, dir
 }
