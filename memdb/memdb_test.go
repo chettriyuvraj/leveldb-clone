@@ -65,3 +65,48 @@ func TestFullScan(t *testing.T) {
 	}
 
 }
+
+func TestGetSSTableData(t *testing.T) {
+	db, err := NewMemDB()
+	require.NoError(t, err)
+
+	/* Empty SSTable err check */
+	_, err = db.getSSTableData()
+	require.Error(t, err, ErrNoSSTableDataToWrite)
+
+	/* Populate db */
+	k1, v1 := []byte("comp"), []byte("computers")
+	err = db.Put(k1, v1)
+	require.NoError(t, err)
+	k2, v2 := []byte("extc"), []byte{}
+	err = db.Put(k2, v2)
+	require.NoError(t, err)
+
+	/* Compute expected result by hand and then compare */
+
+	/* Compute key:val data by hand */
+	k1len := []byte{0x00, 0x00, 0x00, 0x04}
+	k1pluslen := append(k1len, k1...)
+	v1len := []byte{0x00, 0x00, 0x00, 0x09}
+	v1pluslen := append(v1len, v1...)
+	k2len := []byte{0x00, 0x00, 0x00, 0x04}
+	k2pluslen := append(k2len, k2...)
+	v2len := []byte{0x00, 0x00, 0x00, 0x00}
+	v2pluslen := append(v2len, v2...)
+	kvData1 := append(k1pluslen, v1pluslen...)
+	kvData2 := append(k2pluslen, v2pluslen...)
+	kvData := append(kvData1, kvData2...)
+	dirOffset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29} /* 41 -> len(kvData) + 8 bytes for dirOffset at the start */
+	/* Compute directory data */
+	d1 := append(k1, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08}...) /* k1 : starting offset of k1 */
+	d2 := append(k2, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1D}...) /* k2 : starting offset of k2  -> (8+21)*/
+	dir := append(d1, d2...)
+	/* Combine */
+	e1 := append(dirOffset, kvData...)
+	expected := append(e1, dir...)
+
+	got, err := db.getSSTableData()
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+
+}

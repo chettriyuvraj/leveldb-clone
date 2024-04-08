@@ -2,7 +2,10 @@ package memdb
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/chettriyuvraj/leveldb-clone/skiplist"
@@ -12,7 +15,10 @@ const (
 	P                  = 0.25
 	MAXLEVEL           = 12
 	DEFAULTWALFILENAME = "log"
+	DEFAULTSSTFILENAME = "sst"
 )
+
+var ErrNoSSTableDataToWrite = errors.New("no SSTable data to write")
 
 type MemDB struct {
 	skiplist.SkipList
@@ -23,6 +29,15 @@ type MemDBIterator struct {
 	curNode            *skiplist.Node
 	hasEnded           bool
 	err                error
+}
+
+type SSTableDirectory struct {
+	entries []SSTableDirEntry
+}
+
+type SSTableDirEntry struct {
+	key    []byte
+	offset uint64
 }
 
 func (db *MemDB) String() string {
@@ -49,7 +64,11 @@ func (db *MemDB) Has(key []byte) (ret bool, err error) {
 	return true, nil
 }
 
+/* Note: Not allowing empty keys */
 func (db *MemDB) Put(key, val []byte) error {
+	if bytes.Equal(key, []byte{}) {
+		return common.ErrKeyDoesNotExist
+	}
 	if err := db.Insert(key, val); err != nil {
 		return err
 	}
@@ -76,6 +95,78 @@ func (db *MemDB) FullScan() (common.Iterator, error) {
 	return iter, iter.Error()
 }
 
+func (db *MemDB) flushSSTable(f *os.File) error {
+	data, err := db.getSSTableData()
+	if err != nil {
+		return fmt.Errorf("error flushing to SSTable: %w", err)
+	}
+
+	_, err = f.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/*
+SSTable notes:
+-> Directory is the index to offset of each key in the table, so we can find keys without searching the whole table
+SSTableFormat:
+1. 0-7 bytes: offset to start of 'directory'
+2. [start of data] [key_length(4 bytes):key:val_length(4 bytes):val] x Number of keys
+3. [start of directory] [key:key_offset(8 bytes)] x Number of keys
+*/
+
+func (db *MemDB) getSSTableData() (data []byte, err error) {
+	iter, err := db.FullScan()
+	if err != nil {
+		return nil, fmt.Errorf("error getting SSTable: %w", err)
+	}
+
+	dir := SSTableDirectory{}
+	curOffset := 8
+	for {
+		curData := []byte{}
+		k, v := iter.Key(), iter.Value()
+		if k == nil {
+			break
+		}
+
+		dir.entries = append(dir.entries, SSTableDirEntry{key: k, offset: uint64(curOffset)})
+		curData = binary.BigEndian.AppendUint32(curData, uint32(len(k)))
+		curData = append(curData, k...)
+		curData = binary.BigEndian.AppendUint32(curData, uint32(len(v)))
+		curOffset += len(curData)
+		if len(v) > 0 {
+			curData = append(curData, v...)
+			curOffset += len(v)
+		}
+		data = append(data, curData...)
+
+		if nextExists := iter.Next(); !nextExists {
+			break
+		}
+	}
+
+	if len(data) == 0 {
+		return nil, ErrNoSSTableDataToWrite
+	}
+
+	/* Dir offset + kv data */
+	dirOffset := binary.BigEndian.AppendUint64([]byte{}, uint64(curOffset))
+	data = append(dirOffset, data...)
+	/* Add dir data for each key */
+	for _, e := range dir.entries {
+		dirData := append(e.key, binary.BigEndian.AppendUint64([]byte{}, e.offset)...)
+		data = append(data, dirData...)
+	}
+
+	return data, nil
+
+}
+
+/* Note: limitKey -> nil indicates scan till end of range */
 func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
 	iter := MemDBIterator{MemDB: db, startKey: startKey, limitKey: limitKey}
 
