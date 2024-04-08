@@ -105,6 +105,17 @@ func (db *SSTableDB) Get(key []byte) (value []byte, err error) {
 	return val, nil
 }
 
+func (db *SSTableDB) Has(key []byte) (ret bool, err error) {
+	_, err = db.Get(key)
+	if err != nil {
+		if errors.Is(err, common.ErrKeyDoesNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (db *SSTableDB) Seek(offset int64, whence int) (int64, error) {
 	originOffset, err := db.f.Seek(offset, whence)
 	if err != nil {
