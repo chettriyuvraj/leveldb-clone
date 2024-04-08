@@ -91,7 +91,7 @@ func TestGetSSTableData(t *testing.T) {
 /*
 - Hand-computed data for testing
 */
-func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []byte, dir SSTableDirectory) {
+func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []byte, dir *SSTableDirectory) {
 	k1, v1 := []byte("comp"), []byte("computers")
 	k2, v2 := []byte("extc"), []byte{}
 
@@ -118,7 +118,7 @@ func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []b
 	e1 := append(dirOffset, kvData...)
 	expected := append(e1, encodedDir...)
 
-	dir = SSTableDirectory{
+	dir = &SSTableDirectory{
 		entries: []SSTableDirEntry{
 			{uint32(len(k1)), k1, binary.BigEndian.Uint64(k1Offset[:])},
 			{uint32(len(k2)), k2, binary.BigEndian.Uint64(k2Offset[:])},

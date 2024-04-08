@@ -3,30 +3,43 @@ package memdb
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 )
 
 type SSTableDB struct {
 	f   io.ReadWriteCloser
-	dir SSTableDirectory
+	dir *SSTableDirectory
 }
 
 var ErrNoSSTableDirOffset = errors.New("no offset for directory in SSTable file")
 var ErrInvalidSSTableDirOffset = errors.New("dir offset does not exist in SSTable file")
 
-// func OpenSSTableDB(filename string) (SSTableDB, error) {
-// 	f, err := os.Open(filename)
-// 	if err != nil {
-// 		return SSTableDB{}, nil
-// 	}
+func OpenSSTableDB(filename string) (db SSTableDB, err error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return db, fmt.Errorf("error opening SSTable: %w", err)
+	}
 
-// 	return SSTableDB{f: f}, nil
-// }
+	/* TODO: SSTables at higher levels will be larger so read them in a buffered manner instead of all at once */
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return db, fmt.Errorf("error opening SSTable: %w", err)
+	}
+
+	dir, err := getSSTableDir(data)
+	if err != nil {
+		return db, fmt.Errorf("error opening SSTable: %w", err)
+	}
+
+	return SSTableDB{f: f, dir: dir}, nil
+}
 
 /* Note: It will ignore incomplete entries at the end */
-func getSSTableDir(SSTableData []byte) (SSTableDirectory, error) {
+func getSSTableDir(SSTableData []byte) (*SSTableDirectory, error) {
 	if len(SSTableData) < 8 {
-		return SSTableDirectory{}, ErrNoSSTableDirOffset
+		return nil, ErrNoSSTableDirOffset
 	}
 
 	dirOffset := binary.BigEndian.Uint64(SSTableData[:8])
@@ -55,5 +68,11 @@ func getSSTableDir(SSTableData []byte) (SSTableDirectory, error) {
 		dir.entries = append(dir.entries, dirEntry)
 	}
 
-	return dir, nil
+	return &dir, nil
 }
+
+// func (db *SSTableDB) Get(key []byte) (value []byte, err error) {
+// 	/* First find offset of key in directory using binary search */
+// }
+
+// func (dir )
