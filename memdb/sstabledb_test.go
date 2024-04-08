@@ -2,11 +2,32 @@ package memdb
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/stretchr/testify/require"
 )
+
+/* For testing SSTable */
+type BytesReadWriteSeekCloser struct {
+	*bytes.Reader
+}
+
+func (b BytesReadWriteSeekCloser) Write(p []byte) (n int, err error) {
+	curData, err := io.ReadAll(b)
+	if err != nil {
+		return -1, err
+	}
+
+	updatedData := append(curData, p...)
+	b.Reader = bytes.NewReader(updatedData)
+	return len(p), nil
+}
+
+func (b BytesReadWriteSeekCloser) Close() error {
+	return nil
+}
 
 func TestGetSSTableDir(t *testing.T) {
 	/* Test complete directory data */
@@ -25,7 +46,7 @@ func TestGetSSTableDir(t *testing.T) {
 func TestSSTableGet(t *testing.T) {
 	/* Mock SSTableDB to test */
 	records, SSTableData, dir := dummySSTableData()
-	reader := BytesReadSeekCloser{bytes.NewReader(SSTableData)}
+	reader := BytesReadWriteSeekCloser{bytes.NewReader(SSTableData)}
 	db := SSTableDB{f: reader, dir: dir}
 
 	/* Check if each record found */
@@ -39,13 +60,4 @@ func TestSSTableGet(t *testing.T) {
 	/* Check for non-existent record */
 	_, err := db.Get([]byte("randomVal"))
 	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
-}
-
-/* For testing SSTableGet */
-type BytesReadSeekCloser struct {
-	*bytes.Reader
-}
-
-func (b BytesReadSeekCloser) Close() error {
-	return nil
 }
