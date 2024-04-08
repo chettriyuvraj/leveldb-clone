@@ -120,8 +120,8 @@ func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []b
 
 	dir = SSTableDirectory{
 		entries: []SSTableDirEntry{
-			{k1, binary.BigEndian.Uint64(k1Offset[:])},
-			{k2, binary.BigEndian.Uint64(k2Offset[:])},
+			{uint32(len(k1)), k1, binary.BigEndian.Uint64(k1Offset[:])},
+			{uint32(len(k2)), k2, binary.BigEndian.Uint64(k2Offset[:])},
 		},
 	}
 

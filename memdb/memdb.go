@@ -36,6 +36,7 @@ type SSTableDirectory struct {
 }
 
 type SSTableDirEntry struct {
+	len    uint32
 	key    []byte
 	offset uint64
 }
