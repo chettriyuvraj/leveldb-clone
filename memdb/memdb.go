@@ -32,7 +32,7 @@ type MemDBIterator struct {
 }
 
 type SSTableDirectory struct {
-	entries []SSTableDirEntry
+	entries []*SSTableDirEntry
 }
 
 type SSTableDirEntry struct {
@@ -135,7 +135,7 @@ func (db *MemDB) getSSTableData() (data []byte, err error) {
 			break
 		}
 
-		dir.entries = append(dir.entries, SSTableDirEntry{key: k, offset: uint64(curOffset)})
+		dir.entries = append(dir.entries, &SSTableDirEntry{key: k, offset: uint64(curOffset)})
 		curData = binary.BigEndian.AppendUint32(curData, uint32(len(k)))
 		curData = append(curData, k...)
 		curData = binary.BigEndian.AppendUint32(curData, uint32(len(v)))
@@ -197,6 +197,8 @@ func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
 - Assuming iter always initialized using NewMemDBIterator func so all constraints defined there hold
 */
 func (iter *MemDBIterator) Next() bool {
+	iter.err = nil
+
 	if iter.hasEnded {
 		return false
 	}
@@ -218,6 +220,8 @@ func (iter *MemDBIterator) Next() bool {
 }
 
 func (iter *MemDBIterator) Key() []byte {
+	iter.err = nil
+
 	if iter.hasEnded || iter.err != nil || iter.curNode == nil {
 		return nil
 	}
@@ -225,6 +229,8 @@ func (iter *MemDBIterator) Key() []byte {
 }
 
 func (iter *MemDBIterator) Value() []byte {
+	iter.err = nil
+
 	if iter.hasEnded || iter.err != nil || iter.curNode == nil {
 		return nil
 	}
