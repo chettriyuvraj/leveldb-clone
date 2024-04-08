@@ -1,15 +1,19 @@
 package memdb
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sort"
+
+	"github.com/chettriyuvraj/leveldb-clone/common"
 )
 
 type SSTableDB struct {
-	f   io.ReadWriteCloser
+	f   io.ReadSeekCloser
 	dir *SSTableDirectory
 }
 
@@ -71,8 +75,44 @@ func getSSTableDir(SSTableData []byte) (*SSTableDirectory, error) {
 	return &dir, nil
 }
 
-// func (db *SSTableDB) Get(key []byte) (value []byte, err error) {
-// 	/* First find offset of key in directory using binary search */
-// }
+func (db *SSTableDB) Get(key []byte) (value []byte, err error) {
+	/* First find offset of key in directory using binary search */
+	i, found := sort.Find(len(db.dir.entries), func(i int) int {
+		return bytes.Compare(key, db.dir.entries[i].key)
+	})
+	if !found {
+		return nil, common.ErrKeyDoesNotExist
+	}
 
-// func (dir )
+	/* Query the SSTable file by seeking to the offset of the key and reading it's value */
+	dirEntry := db.dir.entries[i]
+	keyLen := len(dirEntry.key)
+	_, err = db.Seek(int64(dirEntry.offset)+4+int64(keyLen), 0)
+	if err != nil {
+		return nil, fmt.Errorf("error seeking data in SSTable: %w", err)
+	}
+	valLen := make([]byte, 4)
+	_, err = db.f.Read(valLen)
+	if err != nil {
+		return nil, fmt.Errorf("error reading val length in SSTable: %w", err)
+	}
+	val := make([]byte, binary.BigEndian.Uint32(valLen))
+	_, err = db.f.Read(val)
+	if err != nil {
+		return nil, fmt.Errorf("error reading val in SSTable: %w", err)
+	}
+
+	return val, nil
+}
+
+func (db *SSTableDB) Seek(offset int64, whence int) (int64, error) {
+	originOffset, err := db.f.Seek(offset, whence)
+	if err != nil {
+		return -1, err
+	}
+	return originOffset, nil
+}
+
+func (db *SSTableDB) Close() error {
+	return db.f.Close()
+}
