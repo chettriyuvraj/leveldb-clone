@@ -66,7 +66,7 @@ func BenchmarkDB(b *testing.B, tester DBTester) {
 func testGetPut(t *testing.T, tester DBTester) {
 	db := tester.New()
 
-	/* Get-Put a non existing key */
+	/* Get a non existing key */
 	keyNonExistent := []byte("kNE")
 	_, err := db.Get(keyNonExistent)
 	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
