@@ -2,6 +2,11 @@ package db
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/chettriyuvraj/leveldb-clone/memdb"
@@ -10,11 +15,15 @@ import (
 
 const (
 	DEFAULTWALFILENAME = "log"
+	DEFAULTSSTFILENAME = "sst"
+	MEMDBLIMIT         = 2000000 /* 2MB - counting only the sizes of keys and vals, not the associated metadata */
 )
 
 type DB struct {
-	memdb *memdb.MemDB
-	log   *wal.WAL
+	dirName string
+	memdb   *memdb.MemDB
+	log     *wal.WAL
+	memSize int /* Size of memdb, only counting the k:v pairs */
 }
 
 var ErrMemDB = errors.New("error while querying memdb")
@@ -22,10 +31,24 @@ var ErrInitDB = errors.New("error initializing DB")
 var ErrWALPUT = errors.New("error appending PUT to WAL")
 var ErrWALDELETE = errors.New("error appending DELETE to WAL")
 var ErrWALReplay = errors.New("error replaying records from WAL")
+var ErrSSTableCreate = errors.New("error creaeting SSTable file")
 
 /* Initialize DB only using this function */
-func NewDB() (*DB, error) {
-	log, err := wal.Open(DEFAULTWALFILENAME)
+func NewDB(dirName string) (*DB, error) {
+	/* Create directory for DB */
+	exists, err := fileOrDirExists(dirName)
+	if err != nil {
+		return nil, errors.Join(ErrInitDB, err)
+	}
+	if !exists {
+		err := os.Mkdir(dirName, 0777)
+		if err != nil {
+			errors.Join(ErrInitDB, err)
+		}
+	}
+
+	logPath := filepath.Join(dirName, DEFAULTWALFILENAME)
+	log, err := wal.Open(logPath)
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
 	}
@@ -35,7 +58,7 @@ func NewDB() (*DB, error) {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 
-	return &DB{memdb: memdb, log: log}, nil
+	return &DB{memdb: memdb, log: log, dirName: dirName}, nil
 }
 
 /* DB is attached with a default WAL, but we have the option to attach our own as well */
@@ -71,6 +94,41 @@ func (db *DB) Has(key []byte) (ret bool, err error) {
 }
 
 func (db *DB) Put(key, val []byte) error { // to modify in memdb
+	dataSize := len(key) + len(val)
+
+	/* Check if Put will exceed memdb limit */
+	if db.memSize+dataSize > MEMDBLIMIT {
+		/* Flush to SSTable */
+		filename, err := getNextSSTableName(db.dirName)
+		if err != nil {
+			return err
+		}
+		f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+		defer f.Close()
+
+		err = db.memdb.FlushSSTable(f)
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+
+		/* Truncate log file */
+		logPath := filepath.Join(db.dirName, db.log.Filename())
+		err = os.Truncate(logPath, 0)
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+
+		/* Create new memdb */
+		memdb, err := memdb.NewMemDB()
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+		db.memdb = memdb
+	}
+
 	err := db.log.Append(key, val, wal.PUT)
 	if err != nil {
 		return errors.Join(ErrWALPUT, err)
@@ -79,6 +137,8 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 	if err := db.memdb.Put(key, val); err != nil {
 		return errors.Join(ErrMemDB, err)
 	}
+
+	db.memSize += dataSize
 	return nil
 }
 
@@ -129,23 +189,33 @@ func (db *DB) Close() error {
 	return db.log.Close()
 }
 
-// type DB interface {
+/* Gets next SSTableName WRT 'dirName' inside the current directory */
+func getNextSSTableName(dirName string) (string, error) {
+	dirEntries, err := os.ReadDir(dirName)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-// 	// Get gets the value for the given key. It returns an error if the
-// 	// DB does not contain the key.
-// 	Get(key []byte) (value []byte, err error)
+	/* Grab all sst file names - we are sure that any 'DEFAULTSSTFILENAME' belongs to sst files only */
+	sstFileNames := []string{}
+	for _, dirEntry := range dirEntries {
+		if strings.HasPrefix(dirEntry.Name(), DEFAULTSSTFILENAME) {
+			sstFileNames = append(sstFileNames, dirEntry.Name())
+		}
+	}
 
-// 	// Has returns true if the DB contains the given key.
-// 	Has(key []byte) (ret bool, err error)
+	curSSTFileIdx := len(sstFileNames) + 1
+	return fmt.Sprintf("%s%d", DEFAULTSSTFILENAME, curSSTFileIdx), nil
+}
 
-// 	// Put sets the value for the given key. It overwrites any previous value
-// 	// for that key; a DB is not a multi-map.
-// 	Put(key, value []byte) error
+func fileOrDirExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
 
-// 	// Delete deletes the value for the given key.
-// 	Delete(key []byte) error
-
-// 	// RangeScan returns an Iterator (see below) for scanning through all
-// 	// key-value pairs in the given range, ordered by key ascending.
-// 	RangeScan(start, limit []byte) (Iterator, error)
-// }
+	return true, nil
+}

@@ -143,3 +143,7 @@ func (log *WAL) Close() error {
 	}
 	return log.file.Close()
 }
+
+func (log *WAL) Filename() string {
+	return log.filename
+}
