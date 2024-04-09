@@ -87,7 +87,7 @@ func (sl *SkipList) isSorted(t *testing.T) bool {
 func (sl *SkipList) isValid(t *testing.T) error {
 	t.Helper()
 	for curNode := sl.head; curNode != sl.nil; curNode = curNode.forward[1] {
-		if err := curNode.verifyAllLevels(sl.nil); err != nil {
+		if err := sl.verifyAllLevels(curNode); err != nil {
 			return err
 		}
 	}
@@ -96,11 +96,10 @@ func (sl *SkipList) isValid(t *testing.T) error {
 
 /*
 - For the node belonging a given skiplist, verify that all nodes that the it is pointing to are correct
-- Nil MUST BE the nil pointer i.e. last pointer of the skiplist
 */
-func (node *Node) verifyAllLevels(skipListNilNode *Node) error {
+func (sl *SkipList) verifyAllLevels(node *Node) error {
 	for level := 1; level <= node.Level(); level++ {
-		if err := node.verifyLevel(level, skipListNilNode); err != nil {
+		if err := sl.verifyLevel(node, level); err != nil {
 			return err
 		}
 	}
@@ -110,16 +109,15 @@ func (node *Node) verifyAllLevels(skipListNilNode *Node) error {
 /*
 - Verify that out of all nodes from src to dst - only dst is >= level
 - For e.g. if node.forward[3] is pointing to 'dst', then between node and dst, dst must be the only node with level >= 3. This is a property of skip lists
-- Note: Both must be part of the same skip list and src must be behind dst - otherwise behaviour undefined
 */
-func (src *Node) verifyLevel(level int, skipListNilNode *Node) error {
+func (sl *SkipList) verifyLevel(src *Node, level int) error {
 	if src.Level() < level {
 		return fmt.Errorf("number of levels: %d in src node (key: %s) is less than the provided level: %d", src.Level(), string(src.key), level)
 	}
 
 	dst := src.forward[level]
 
-	if dst != skipListNilNode && dst.Level() < level {
+	if dst != sl.nil && dst.Level() < level {
 		return fmt.Errorf("number of levels: %d in dst node (key: %s) is less than the provided level: %d", dst.Level(), string(dst.key), level)
 	}
 
