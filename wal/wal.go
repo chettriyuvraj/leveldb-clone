@@ -7,8 +7,13 @@ import (
 	"os"
 )
 
+type ReadWriteSeekCloser interface {
+	io.ReadWriteSeeker
+	io.Closer
+}
+
 type WAL struct {
-	file     io.ReadWriteSeeker
+	file     ReadWriteSeekCloser
 	filename string
 }
 
@@ -146,4 +151,11 @@ func (log *WAL) Seek(offset int64, whence int) (int64, error) {
 		return -1, ErrNoUnderlyingFileForLog
 	}
 	return log.file.Seek(offset, whence)
+}
+
+func (log *WAL) Close() error {
+	if log.file == nil {
+		return ErrNoUnderlyingFileForLog
+	}
+	return log.file.Close()
 }
