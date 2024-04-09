@@ -12,10 +12,8 @@ import (
 )
 
 const (
-	P                  = 0.25
-	MAXLEVEL           = 12
-	DEFAULTWALFILENAME = "log"
-	DEFAULTSSTFILENAME = "sst"
+	P        = 0.25
+	MAXLEVEL = 12
 )
 
 var ErrNoSSTableDataToWrite = errors.New("no SSTable data to write")
@@ -46,7 +44,7 @@ func (db *MemDB) String() string {
 }
 
 func NewMemDB() (*MemDB, error) {
-	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL)}, nil
+	return &MemDB{SkipList: *skiplist.NewSkipList(P, MAXLEVEL)}, nil
 }
 
 func (db *MemDB) Get(key []byte) (val []byte, err error) {
@@ -96,7 +94,7 @@ func (db *MemDB) FullScan() (common.Iterator, error) {
 	return iter, iter.Error()
 }
 
-func (db *MemDB) flushSSTable(f io.Writer) error {
+func (db *MemDB) FlushSSTable(f io.Writer) error {
 	data, err := db.getSSTableData()
 	if err != nil {
 		return fmt.Errorf("error flushing to SSTable: %w", err)

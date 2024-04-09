@@ -77,7 +77,7 @@ func TestSSTableRangeScan(t *testing.T) {
 
 	/* Flush to an SSTable + get data as bytes + create in-mem sstable */
 	b := BytesReadWriteSeekCloser{bytes.NewReader([]byte{})}
-	err = memdb.flushSSTable(&b)
+	err = memdb.FlushSSTable(&b)
 	require.NoError(t, err)
 	sstData, err := io.ReadAll(b)
 	require.NoError(t, err)
