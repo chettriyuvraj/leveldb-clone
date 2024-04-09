@@ -3,7 +3,6 @@ package db
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +15,7 @@ import (
 const (
 	DEFAULTWALFILENAME = "log"
 	DEFAULTSSTFILENAME = "sst"
-	MEMDBLIMIT         = 2000000 /* 2MB - counting only the sizes of keys and vals, not the associated metadata */
+	MEMDBLIMIT         = 10 /* 10 bytes - counting only the sizes of keys and vals, not the associated metadata */
 )
 
 type DB struct {
@@ -77,9 +76,44 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		if !errors.Is(err, common.ErrKeyDoesNotExist) {
 			return nil, errors.Join(ErrMemDB, err)
 		}
-		return nil, err
+		return db.searchSSTables(key)
 	}
 	return val, nil
+}
+
+func (db *DB) searchSSTables(key []byte) (val []byte, err error) {
+	/* Grab all sst file names - we are sure that any 'DEFAULTSSTFILENAME' belongs to sst files only */
+	dirEntries, err := os.ReadDir(db.dirName)
+	if err != nil {
+		return nil, fmt.Errorf("error searching for sstable filenames: %w", err)
+	}
+
+	sstFileNames := []string{}
+	for _, dirEntry := range dirEntries {
+		if strings.HasPrefix(dirEntry.Name(), DEFAULTSSTFILENAME) {
+			sstFileNames = append(sstFileNames, dirEntry.Name())
+		}
+	}
+
+	/* Search each sstable */
+	for _, sstFileName := range sstFileNames {
+		sstFilePath := filepath.Join(db.dirName, sstFileName)
+		db, err := memdb.OpenSSTableDB(sstFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error opening sstables: %w", err)
+		}
+
+		val, err := db.Get(key)
+		if err != nil {
+			if !errors.Is(err, common.ErrKeyDoesNotExist) {
+				return nil, fmt.Errorf("error searching sstables: %w", err)
+			}
+			continue
+		}
+		return val, nil
+	}
+
+	return nil, common.ErrKeyDoesNotExist
 }
 
 func (db *DB) Has(key []byte) (ret bool, err error) {
@@ -103,7 +137,9 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 		if err != nil {
 			return err
 		}
-		f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
+
+		sstPath := filepath.Join(db.dirName, filename)
+		f, err := os.OpenFile(sstPath, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
 		if err != nil {
 			return errors.Join(ErrSSTableCreate, err)
 		}
@@ -114,9 +150,12 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 			return errors.Join(ErrSSTableCreate, err)
 		}
 
-		/* Truncate log file */
-		logPath := filepath.Join(db.dirName, db.log.Filename())
-		err = os.Truncate(logPath, 0)
+		/* Truncate log file and seek to the start */
+		err = os.Truncate(db.log.Filename(), 0)
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+		_, err = db.log.Seek(0, 0)
 		if err != nil {
 			return errors.Join(ErrSSTableCreate, err)
 		}
@@ -127,6 +166,8 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 			return errors.Join(ErrSSTableCreate, err)
 		}
 		db.memdb = memdb
+
+		db.memSize = 0
 	}
 
 	err := db.log.Append(key, val, wal.PUT)
@@ -185,6 +226,7 @@ func (db *DB) Replay() error {
 	return nil
 }
 
+/* Can we do this differently? */
 func (db *DB) Close() error {
 	return db.log.Close()
 }
@@ -193,7 +235,7 @@ func (db *DB) Close() error {
 func getNextSSTableName(dirName string) (string, error) {
 	dirEntries, err := os.ReadDir(dirName)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	/* Grab all sst file names - we are sure that any 'DEFAULTSSTFILENAME' belongs to sst files only */
