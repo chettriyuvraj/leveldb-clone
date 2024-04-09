@@ -8,12 +8,12 @@ import (
 )
 
 /* To mock files for test */
-type BytesBufferCloser struct {
+type BytesBufferDummySeeker struct {
 	bytes.Buffer
 }
 
-func (b *BytesBufferCloser) Close() error {
-	return nil
+func (b *BytesBufferDummySeeker) Seek(offset int64, whence int) (int64, error) {
+	return 0, nil
 }
 
 func TestAppendAndReplay(t *testing.T) {
@@ -33,7 +33,7 @@ func TestAppendAndReplay(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		log := &WAL{file: &BytesBufferCloser{}}
+		log := &WAL{file: &BytesBufferDummySeeker{}}
 		for _, record := range tc.records {
 			err := log.Append(record.key, record.val, record.op)
 			require.NoError(t, err)

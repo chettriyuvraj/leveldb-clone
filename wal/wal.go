@@ -8,7 +8,7 @@ import (
 )
 
 type WAL struct {
-	file     io.ReadWriteCloser
+	file     io.ReadWriteSeeker
 	filename string
 }
 
@@ -137,13 +137,13 @@ func (log *WAL) Replay() ([]LogRecord, error) {
 	return records, nil
 }
 
-func (log *WAL) Close() error {
-	if log.file == nil {
-		return ErrNoUnderlyingFileForLog
-	}
-	return log.file.Close()
-}
-
 func (log *WAL) Filename() string {
 	return log.filename
+}
+
+func (log *WAL) Seek(offset int64, whence int) (int64, error) {
+	if log.file == nil {
+		return -1, ErrNoUnderlyingFileForLog
+	}
+	return log.file.Seek(offset, whence)
 }
