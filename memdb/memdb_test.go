@@ -2,7 +2,6 @@ package memdb
 
 import (
 	"encoding/binary"
-	"fmt"
 	"testing"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
@@ -32,37 +31,52 @@ func BenchmarkDB(b *testing.B) {
 /* Implementation-specific tests */
 
 func TestFullScan(t *testing.T) {
+	/* Test empty memdb */
 	db, err := NewMemDB()
 	require.NoError(t, err)
-
-	/* Test empty memdb */
 	iter, err := db.FullScan()
 	require.NoError(t, err)
 	test.IteratorTestNext(t, iter, false, false)
 	test.IteratorTestKey(t, iter, nil, false)
 	test.IteratorTestVal(t, iter, nil, false)
 
-	/* Populate db */
-	for i := 1; i <= 9; i++ {
-		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		err := db.Put(k, v)
-		require.NoError(t, err)
+	/* Test non-empty db */
+	tcs := []struct {
+		k, v []byte
+	}{
+		{k: []byte("key1"), v: []byte("val1")},
+		{k: []byte("key2"), v: []byte("val2")},
+		{k: []byte("key3"), v: []byte("val3")},
 	}
 
-	/* Check if all values obtained using FullScan + no error and nil when exhausted */
-	iter, err = db.FullScan()
-	require.NoError(t, err)
-	for i := 1; i <= 9; i++ {
-		keyExpected, valExpected := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		test.IteratorTestKey(t, iter, keyExpected, false)
-		test.IteratorTestVal(t, iter, valExpected, false)
-		if i < 9 {
-			test.IteratorTestNext(t, iter, true, false)
-		} else {
-			test.IteratorTestNext(t, iter, false, false)
-			test.IteratorTestKey(t, iter, nil, false)
-			test.IteratorTestVal(t, iter, nil, false)
+	for i := range tcs {
+		records := tcs[:i+1]
+		db, err := NewMemDB()
+		require.NoError(t, err)
+
+		/* Populate a subset of the test case records */
+		for _, record := range records {
+			err := db.Put(record.k, record.v)
+			require.NoError(t, err)
 		}
+
+		/* Verify if we can get entire subset using FullScan() */
+		iter, err = db.FullScan()
+		require.NoError(t, err)
+		for j := 0; j < i+1; j++ {
+			recordExpected := tcs[j]
+			keyExpected, valExpected := recordExpected.k, recordExpected.v
+			test.IteratorTestKey(t, iter, keyExpected, false)
+			test.IteratorTestVal(t, iter, valExpected, false)
+			if j < i {
+				test.IteratorTestNext(t, iter, true, false)
+			}
+		}
+
+		/* Verify if iterator exhaused after all elems output-ed */
+		test.IteratorTestNext(t, iter, false, false)
+		test.IteratorTestKey(t, iter, nil, false)
+		test.IteratorTestVal(t, iter, nil, false)
 	}
 
 }
