@@ -115,7 +115,7 @@ func (sl *SkipList) Nil() *Node {
 func (node *Node) String() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("\n\nKey: %s", string(node.key)))
-	for i := 1; i <= node.getLevel(); i++ {
+	for i := 1; i <= node.Level(); i++ {
 		sb.WriteString(fmt.Sprintf("\nLevel %d: %s\n", i, string(node.forward[i].key)))
 	}
 	return sb.String()
@@ -158,7 +158,7 @@ func (node *Node) GetAdjacent() *Node {
 /*
 - Assuming first level is always a dummy level
 */
-func (node *Node) getLevel() int {
+func (node *Node) Level() int {
 	return len(node.forward) - 1
 }
 
