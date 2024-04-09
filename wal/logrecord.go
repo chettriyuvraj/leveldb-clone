@@ -5,24 +5,13 @@ import (
 	"errors"
 )
 
-/*
-1 individual log record format:
-- 1 byte op-type
-- 4 byte key length
-- {key-length} bytes key
-- 4 byte val length
-- {val-length} bytes val
-As little endian
-*/
-
 const (
 	PUT = byte(iota)
 	DELETE
 )
 
 const (
-	MINIMUMRECORDSIZE  = 9
-	WALDEFAULTFILENAME = "wal.log"
+	MINIMUMRECORDSIZE = 9
 )
 
 var opmap map[byte]bool = map[byte]bool{

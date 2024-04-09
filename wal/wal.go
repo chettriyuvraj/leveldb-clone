@@ -8,11 +8,9 @@ import (
 )
 
 type WAL struct {
-	file     io.ReadWriteCloser /* Helpful for things like mocking */
+	file     io.ReadWriteCloser
 	filename string
 }
-
-type WALFlag byte
 
 var ErrNoUnderlyingFileForLog = errors.New("log does not have any underlying file")
 
