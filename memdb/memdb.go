@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	P        = 0.25
-	MAXLEVEL = 12
+	P                    = 0.25
+	MAXLEVEL             = 12
+	DEFAULTINDEXDISTANCE = 15
 )
 
 var ErrNoSSTableDataToWrite = errors.New("no SSTable data to write")
@@ -95,7 +96,7 @@ func (db *MemDB) FullScan() (common.Iterator, error) {
 }
 
 func (db *MemDB) FlushSSTable(f io.Writer) error {
-	data, err := db.getSSTableData()
+	data, err := db.getSSTableData(DEFAULTINDEXDISTANCE)
 	if err != nil {
 		return fmt.Errorf("error flushing to SSTable: %w", err)
 	}
@@ -115,9 +116,13 @@ SSTableFormat:
 1. 0-7 bytes: offset to start of 'directory'
 2. [start of data] [key_length(4 bytes):key:val_length(4 bytes):val] x Number of keys
 3. [start of directory] [key_length(4 bytes):key:key_offset(8 bytes)] x Number of keys
+This looks like
+[DirectoryOffset]
+[Data]
+[Directory]
 */
 
-func (db *MemDB) getSSTableData() (data []byte, err error) {
+func (db *MemDB) getSSTableData(distBetweenIndexKeys int) (data []byte, err error) {
 	iter, err := db.FullScan()
 	if err != nil {
 		return nil, fmt.Errorf("error getting SSTable: %w", err)
@@ -125,24 +130,27 @@ func (db *MemDB) getSSTableData() (data []byte, err error) {
 
 	/* Scan all entries in sorted order + keep track of their offsets + construct SSTable */
 	dir := SSTableDirectory{}
-	curOffset := 8
+	curOffset, curDistanceBetweenKeys := 8, 0
 	for {
-		curData := []byte{}
 		k, v := iter.Key(), iter.Value()
+		kvSize := len(k) + len(v)
 		if k == nil {
 			break
 		}
 
-		dir.entries = append(dir.entries, &SSTableDirEntry{key: k, offset: uint64(curOffset)})
-		curData = binary.BigEndian.AppendUint32(curData, uint32(len(k)))
-		curData = append(curData, k...)
-		curData = binary.BigEndian.AppendUint32(curData, uint32(len(v)))
-		curOffset += len(curData)
-		if len(v) > 0 {
-			curData = append(curData, v...)
-			curOffset += len(v)
+		/* Only append entry to index if distance between keys ~ distBetween keys OR key is the first key, since we are creating a sparse index  */
+		if len(data) == 0 || curDistanceBetweenKeys+kvSize > distBetweenIndexKeys {
+			dirEntry := &SSTableDirEntry{key: k, offset: uint64(curOffset)}
+			dir.entries = append(dir.entries, dirEntry)
+			curDistanceBetweenKeys = 0
+		} else {
+			curDistanceBetweenKeys += kvSize
 		}
-		data = append(data, curData...)
+
+		/* Append data record to data */
+		dataRecord := createSSTableDataRecord(k, v)
+		curOffset += len(dataRecord)
+		data = append(data, dataRecord...)
 
 		if nextExists := iter.Next(); !nextExists {
 			break
@@ -164,12 +172,25 @@ func (db *MemDB) getSSTableData() (data []byte, err error) {
 		dirData = append(dirData, keyOffset...)
 	}
 
-	/* Combine directoryOffset:SSTableData:directory */
+	/* Combine directoryOffset:SSTableData:directory*/
 	data = append(dirOffset, data...)
 	data = append(data, dirData...)
 
 	return data, nil
 
+}
+
+/*
+Format for a single record: [key_length(4 bytes):key:val_length(4 bytes):val]
+*/
+func createSSTableDataRecord(k, v []byte) (record []byte) {
+	record = binary.BigEndian.AppendUint32(record, uint32(len(k)))
+	record = append(record, k...)
+	record = binary.BigEndian.AppendUint32(record, uint32(len(v)))
+	if len(v) > 0 {
+		record = append(record, v...)
+	}
+	return record
 }
 
 /* Note: limitKey -> nil indicates scan till end of range */

@@ -1,7 +1,6 @@
 package memdb
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
@@ -79,65 +78,4 @@ func TestFullScan(t *testing.T) {
 		test.IteratorTestVal(t, iter, nil, false)
 	}
 
-}
-
-func TestGetSSTableData(t *testing.T) {
-	db, err := NewMemDB()
-	require.NoError(t, err)
-
-	/* Empty SSTable err check */
-	_, err = db.getSSTableData()
-	require.Error(t, err, ErrNoSSTableDataToWrite)
-
-	/* Populate db + compute expected result by hand in duumySSTableData func */
-	records, expectedSSTableData, _ := dummySSTableData()
-	for _, record := range records {
-		err = db.Put(record.k, record.v)
-		require.NoError(t, err)
-	}
-
-	got, err := db.getSSTableData()
-	require.NoError(t, err)
-	require.Equal(t, expectedSSTableData, got)
-
-}
-
-/*
-- Hand-computed data for testing
-*/
-func dummySSTableData() (records []struct{ k, v []byte }, encodedSSTableData []byte, dir *SSTableDirectory) {
-	k1, v1 := []byte("comp"), []byte("computers")
-	k2, v2 := []byte("extc"), []byte{}
-
-	/* Compute key:val data by hand */
-	k1len := []byte{0x00, 0x00, 0x00, 0x04}
-	k1pluslen := append(k1len, k1...)
-	v1len := []byte{0x00, 0x00, 0x00, 0x09}
-	v1pluslen := append(v1len, v1...)
-	k2len := []byte{0x00, 0x00, 0x00, 0x04}
-	k2pluslen := append(k2len, k2...)
-	v2len := []byte{0x00, 0x00, 0x00, 0x00}
-	v2pluslen := append(v2len, v2...)
-	kvData1 := append(k1pluslen, v1pluslen...)
-	kvData2 := append(k2pluslen, v2pluslen...)
-	kvData := append(kvData1, kvData2...)
-	dirOffset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29} /* 41 -> len(kvData) + 8 bytes for dirOffset at the start */
-	/* Compute directory data */
-	k1Offset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08}
-	k2Offset := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1D} /* (8 + 21) since the first 8 bytes include the dirOffset */
-	d1 := append(k1len, append(k1, k1Offset...)...)
-	d2 := append(k2len, append(k2, k2Offset...)...)
-	encodedDir := append(d1, d2...)
-	/* Combine */
-	e1 := append(dirOffset, kvData...)
-	expected := append(e1, encodedDir...)
-
-	dir = &SSTableDirectory{
-		entries: []*SSTableDirEntry{
-			{uint32(len(k1)), k1, binary.BigEndian.Uint64(k1Offset[:])},
-			{uint32(len(k2)), k2, binary.BigEndian.Uint64(k2Offset[:])},
-		},
-	}
-
-	return []struct{ k, v []byte }{{k1, v1}, {k2, v2}}, expected, dir
 }

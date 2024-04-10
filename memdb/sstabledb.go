@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -13,51 +12,57 @@ import (
 )
 
 type SSTableDB struct {
-	f   io.ReadSeekCloser
-	dir *SSTableDirectory
+	f         io.ReadSeekCloser
+	dir       *SSTableDirectory
+	dirOffset uint64
 }
 
-/* Iterator will store all the offsets for the range, and grab each one on each 'next' */
+/* Iterator will store the current offset for the range, and move to the next one on next + check if we have exceeded limit */
 type SSTableIterator struct {
-	db      *SSTableDB
-	entries []*SSTableDirEntry
-	idx     int
-	curVal  []byte /* After first call to Value(), this is cached */
-	err     error
+	db             *SSTableDB
+	fileOffset     uint64
+	endKey         []byte
+	curKey, curVal []byte /* After first call to Value() or Key(), this is cached */
+	hasEnded       bool
+	err            error
 }
 
 var ErrNoSSTableDirOffset = errors.New("no offset for directory in SSTable file")
 var ErrInvalidSSTableDirOffset = errors.New("dir offset does not exist in SSTable file")
+var ErrNewSSTableOpen = errors.New("error opening new SSTable")
+var ErrSSTableGet = errors.New("error getting data from SSTable")
+var ErrNewSSTableIter = errors.New("error creating new SST iterator")
+var ErrSSTableIterNext = errors.New("error moving to next item in SSTable iterator")
 
 func OpenSSTableDB(filename string) (db SSTableDB, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return db, fmt.Errorf("error opening SSTable: %w", err)
+		return db, errors.Join(ErrNewSSTableOpen, err)
 	}
 
 	/* TODO: SSTables at higher levels will be larger so read them in a buffered manner instead of all at once */
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return db, fmt.Errorf("error opening SSTable: %w", err)
+		return db, errors.Join(ErrNewSSTableOpen, err)
 	}
 
-	dir, err := getSSTableDir(data)
+	dir, dirOffset, err := getSSTableDir(data)
 	if err != nil {
-		return db, fmt.Errorf("error opening SSTable: %w", err)
+		return db, errors.Join(ErrNewSSTableOpen, err)
 	}
 
-	return SSTableDB{f: f, dir: dir}, nil
+	return SSTableDB{f: f, dir: dir, dirOffset: dirOffset}, nil
 }
 
 /* Note: It will ignore incomplete entries at the end */
-func getSSTableDir(SSTableData []byte) (*SSTableDirectory, error) {
+func getSSTableDir(SSTableData []byte) (dir *SSTableDirectory, dirOffset uint64, err error) {
 	if len(SSTableData) < 8 {
-		return nil, ErrNoSSTableDirOffset
+		return nil, 0, ErrNoSSTableDirOffset
 	}
 
-	dirOffset := binary.BigEndian.Uint64(SSTableData[:8])
+	dirOffset = binary.BigEndian.Uint64(SSTableData[:8])
 	curOffset := dirOffset
-	dir := SSTableDirectory{entries: []*SSTableDirEntry{}}
+	dir = &SSTableDirectory{entries: []*SSTableDirEntry{}}
 	for {
 		if curOffset+4 > uint64(len(SSTableData)) {
 			break
@@ -81,37 +86,85 @@ func getSSTableDir(SSTableData []byte) (*SSTableDirectory, error) {
 		dir.entries = append(dir.entries, &dirEntry)
 	}
 
-	return &dir, nil
+	return dir, dirOffset, nil
+}
+
+/* Find index of first key greater than or equal to the current key using binary search. Returns 'n' if key does not exist */
+func (db *SSTableDB) getRightBisect(key []byte) int {
+	entries, entriesN := db.dir.entries, len(db.dir.entries)
+	return sort.Search(entriesN, func(i int) bool {
+		return bytes.Compare(entries[i].key, key) >= 0
+	})
 }
 
 func (db *SSTableDB) Get(key []byte) (value []byte, err error) {
-	/* First find offset of key in directory using binary search */
-	i, found := sort.Find(len(db.dir.entries), func(i int) int {
-		return bytes.Compare(key, db.dir.entries[i].key)
-	})
-	if !found {
+	entries := db.dir.entries
+
+	/* First find left and right bounds using binary search */
+	rightBound := db.getRightBisect(key)
+	leftBound := rightBound - 1
+	if rightBound < len(entries) && bytes.Equal(entries[rightBound].key, key) {
+		leftBound = rightBound
+	}
+	if leftBound < 0 {
 		return nil, common.ErrKeyDoesNotExist
 	}
 
-	/* Query the SSTable file by seeking to the offset of the key and reading it's value */
-	dirEntry := db.dir.entries[i]
-	keyLen := len(dirEntry.key)
-	_, err = db.Seek(int64(dirEntry.offset)+4+int64(keyLen), 0)
+	/* Seek to the left bound */
+	curOffset := entries[leftBound].offset
+	_, err = db.Seek(int64(curOffset), 0)
 	if err != nil {
-		return nil, fmt.Errorf("error seeking data in SSTable: %w", err)
-	}
-	valLen := make([]byte, 4)
-	_, err = db.f.Read(valLen)
-	if err != nil {
-		return nil, fmt.Errorf("error reading val length in SSTable: %w", err)
-	}
-	val := make([]byte, binary.BigEndian.Uint32(valLen))
-	_, err = db.f.Read(val)
-	if err != nil {
-		return nil, fmt.Errorf("error reading val in SSTable: %w", err)
+		return nil, errors.Join(ErrSSTableGet)
 	}
 
-	return val, nil
+	/* Now continue searching until we are sure key cannot be found */
+	for curOffset < db.dirOffset {
+		keyLen := make([]byte, 4)
+		_, err = db.f.Read(keyLen)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Join(ErrSSTableGet)
+		}
+
+		curKey := make([]byte, binary.BigEndian.Uint32(keyLen))
+		_, err = db.f.Read(curKey)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Join(ErrSSTableGet)
+		}
+
+		valLen := make([]byte, 4)
+		_, err = db.f.Read(valLen)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Join(ErrSSTableGet)
+		}
+
+		curVal := make([]byte, binary.BigEndian.Uint32(valLen))
+		_, err = db.f.Read(curVal)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Join(ErrSSTableGet)
+		}
+
+		if bytes.Equal(key, curKey) {
+			return curVal, nil
+		}
+
+		if bytes.Compare(key, curKey) < 0 {
+			break
+		}
+	}
+
+	return nil, common.ErrKeyDoesNotExist
 }
 
 func (db *SSTableDB) Has(key []byte) (ret bool, err error) {
@@ -146,89 +199,168 @@ func (db *SSTableDB) Close() error {
 }
 
 func NewSSTableIterator(db *SSTableDB, start, limit []byte) (*SSTableIterator, error) {
-	iter := &SSTableIterator{db: db}
 	entries, entriesN := db.dir.entries, len(db.dir.entries)
 
 	if bytes.Compare(start, limit) > 0 {
-		return iter, common.ErrInvalidRange
+		return nil, common.ErrInvalidRange
 	}
 
-	/* Find 2 indexes between which the range occurs */
-	startIdx := sort.Search(entriesN, func(i int) bool {
-		return bytes.Compare(entries[i].key, start) >= 0
-	})
+	/* Find first key equal to or greater than startKey */
+	startIdx := db.getRightBisect(start)
 	if startIdx == entriesN {
-		return iter, nil
+		return &SSTableIterator{db: db, hasEnded: true, endKey: limit}, nil
 	}
 
-	endIdx := sort.Search(entriesN, func(i int) bool {
-		return bytes.Compare(entries[i].key, limit) >= 0
-	})
-
-	/* Depending on the value and the key at endIdx, grab the entries of the range */
-	if endIdx == entriesN {
-		iter.entries = entries[startIdx:]
-		return iter, nil
-	}
-	if bytes.Equal(entries[endIdx].key, limit) {
-		iter.entries = entries[startIdx : endIdx+1]
-		return iter, nil
+	/* Seek to this key  */
+	curOffset := entries[startIdx].offset
+	_, err := db.Seek(int64(curOffset), 0)
+	if err != nil {
+		return nil, errors.Join(ErrNewSSTableIter, err)
 	}
 
-	iter.entries = entries[startIdx:endIdx]
-	return iter, nil
+	/* Add first key, val to iterator */
+	keyLen := make([]byte, 4)
+	_, err = db.f.Read(keyLen)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, endKey: limit}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += 4
+
+	curKey := make([]byte, binary.BigEndian.Uint32(keyLen))
+	_, err = db.f.Read(curKey)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, endKey: limit}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += uint64(len(curKey))
+
+	valLen := make([]byte, 4)
+	_, err = db.f.Read(valLen)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, endKey: limit}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += 4
+
+	curVal := make([]byte, binary.BigEndian.Uint32(valLen))
+	_, err = db.f.Read(curVal)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, endKey: limit}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += uint64(len(curVal))
+
+	/* No elems found in the range - first key itself exceeds limit */
+	if bytes.Compare(curKey, limit) > 0 {
+		return &SSTableIterator{db: db, fileOffset: curOffset, endKey: limit, hasEnded: true}, nil
+	}
+
+	return &SSTableIterator{db: db, fileOffset: curOffset, endKey: limit, curKey: curKey, curVal: curVal}, nil
 }
 
+/*
+- If iterator errors out other than for io.EOF, it will remain at the same offset with same k,v
+*/
 func (iter *SSTableIterator) Next() bool {
-	iter.curVal = nil
+	if iter.hasEnded {
+		return false
+	}
+
+	if iter.fileOffset >= iter.db.dirOffset {
+		iter.curKey, iter.curVal = nil, nil
+		iter.hasEnded = true
+		return false
+	}
+
+	db := iter.db
+	offset := iter.fileOffset
+
+	/* Add next key, val to iterator */
+	keyLen := make([]byte, 4)
+	_, err := db.f.Read(keyLen)
+	if err != nil {
+		if err == io.EOF {
+			iter.curKey, iter.curVal = nil, nil
+			iter.hasEnded = true
+			return false
+		}
+		iter.err = err
+		return false
+	}
+	offset += 4
+
+	curKey := make([]byte, binary.BigEndian.Uint32(keyLen))
+	_, err = db.f.Read(curKey)
+	if err != nil {
+		if err == io.EOF {
+			iter.curKey, iter.curVal = nil, nil
+			iter.hasEnded = true
+			return false
+		}
+		iter.err = err
+		return false
+	}
+	offset += uint64(len(curKey))
+
+	valLen := make([]byte, 4)
+	_, err = db.f.Read(valLen)
+	if err != nil {
+		if err == io.EOF {
+			iter.curKey, iter.curVal = nil, nil
+			iter.hasEnded = true
+			return false
+		}
+		iter.err = err
+		return false
+	}
+	offset += 4
+
+	curVal := make([]byte, binary.BigEndian.Uint32(valLen))
+	_, err = db.f.Read(curVal)
+	if err != nil {
+		if err == io.EOF {
+			iter.curKey, iter.curVal = nil, nil
+			iter.hasEnded = true
+			return false
+		}
+		iter.err = err
+		return false
+	}
+	offset += uint64(len(curVal))
+
+	/* Check if range limit exceeded */
+	if bytes.Compare(curKey, iter.endKey) > 0 {
+		iter.curKey, iter.curVal = nil, nil
+		iter.hasEnded = true
+		return false
+	}
+
+	iter.curKey = curKey
+	iter.curVal = curVal
 	iter.err = nil
+	iter.fileOffset = offset
 
-	if iter.idx == len(iter.entries)-1 {
-		iter.idx += 1
-		return false
-	}
-
-	if iter.idx >= len(iter.entries) {
-		return false
-	}
-
-	iter.idx += 1
 	return true
 }
 
 func (iter *SSTableIterator) Key() []byte {
-	iter.err = nil
-
-	if iter.idx >= len(iter.entries) {
-		return nil
-	}
-	return iter.entries[iter.idx].key
+	return iter.curKey
 }
 
 /*
 - We use Get which searches for the offset again, even though we already have the offset with us, can be improved
 */
 func (iter *SSTableIterator) Value() []byte {
-	iter.err = nil
-	iter.curVal = nil
-
-	if iter.idx >= len(iter.entries) {
-		return nil
-	}
-
-	/* Check if already cached by a previous call to Value() */
-	if iter.curVal != nil {
-		return iter.curVal
-	}
-
-	key := iter.entries[iter.idx].key
-	val, err := iter.db.Get(key)
-	if err != nil {
-		iter.err = err
-	}
-	iter.curVal = val
-
-	return val
+	return iter.curVal
 }
 
 func (iter *SSTableIterator) Error() error {

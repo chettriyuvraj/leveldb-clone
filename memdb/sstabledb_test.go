@@ -31,37 +31,82 @@ func (b BytesReadWriteSeekCloser) Close() error {
 	return nil
 }
 
+/* Can be more robust, but for now we are testing our ss table generation solely by comparing the directory generated */
 func TestGetSSTableDir(t *testing.T) {
-	/* Test complete directory data */
-	_, SSTableData, expectedDir := dummySSTableData()
-	gotDir, err := getSSTableDir(SSTableData)
-	require.NoError(t, err)
-	require.Equal(t, expectedDir, gotDir)
+	/* Populate DB */
+	distBetweenIndexKeys := 10
+	records := []struct{ k, v []byte }{
+		{[]byte("comp"), []byte("c")},
+		{[]byte("extc"), []byte{}},
+		{[]byte("mecha"), []byte("mechanical")},
+		{[]byte("zebr"), []byte("?")},
+	}
+	db := memDBWithRecords(t, records)
 
-	/* Test incomplete directory data - any incomplete data will be ignored */
-	gotDir, err = getSSTableDir(SSTableData[:len(SSTableData)-3])
-	expectedDir.entries = expectedDir.entries[:1]
+	/* Get SSTable data for DB, convert it to dir and compare to expected dir */
+	sstData, err := db.getSSTableData(distBetweenIndexKeys)
 	require.NoError(t, err)
-	require.Equal(t, expectedDir, gotDir)
+	gotDir, _, err := getSSTableDir(sstData)
+	require.NoError(t, err)
+	expectedDir := SSTableDirectory{
+		entries: []*SSTableDirEntry{
+			{len: 4, key: records[0].k, offset: 8},
+			{len: 5, key: records[2].k, offset: 8 + 16 + 9},
+		},
+	}
+
+	require.Equal(t, expectedDir, *gotDir)
 }
 
 func TestSSTableGet(t *testing.T) {
-	/* Mock SSTableDB to test */
-	records, SSTableData, dir := dummySSTableData()
-	reader := BytesReadWriteSeekCloser{bytes.NewReader(SSTableData)}
-	db := SSTableDB{f: reader, dir: dir}
+	/* Populate memdb */
+	distBetweenIndexKeys := 10
+	records := []struct{ k, v []byte }{
+		{[]byte("biot"), []byte("b")},
+		{[]byte("comp"), []byte("c")},
+		{[]byte("elec"), []byte("e")},
+		{[]byte("extc"), []byte{}},
+		{[]byte("mecha"), []byte("mechanical")},
+		{[]byte("zebr"), []byte("?")},
+	}
+	db := memDBWithRecords(t, records)
+
+	/* Get SSTable */
+	sstData, err := db.getSSTableData(distBetweenIndexKeys)
+	require.NoError(t, err)
+	sstDir, dirOffset, err := getSSTableDir(sstData)
+	require.NoError(t, err)
+	sstDB := SSTableDB{f: BytesReadWriteSeekCloser{bytes.NewReader(sstData)}, dir: sstDir, dirOffset: dirOffset}
 
 	/* Check if each record found */
-	for i := len(records) - 1; i >= 0; i-- {
-		k, expectedV := records[i].k, records[i].v
-		gotV, err := db.Get(k)
-		require.NoError(t, err)
-		require.Equal(t, expectedV, gotV)
+	tcs := []struct {
+		name    string
+		record  struct{ k, v []byte }
+		errWant error
+	}{
+		{name: "get first record", record: records[0]},
+		{name: "get last record", record: records[5]},
+		{name: "get last dir indexed record", record: records[4]},
+		{name: "get non dir indexed record", record: records[2]},
+		{name: "get non-existent record lesser than first key", record: struct {
+			k []byte
+			v []byte
+		}{[]byte("alexa"), []byte("amazon")}, errWant: common.ErrKeyDoesNotExist},
+		{name: "get non-existent record lesser than last key", record: struct {
+			k []byte
+			v []byte
+		}{[]byte("zx"), []byte("zx")}, errWant: common.ErrKeyDoesNotExist},
 	}
 
-	/* Check for non-existent record */
-	_, err := db.Get([]byte("randomVal"))
-	require.ErrorIs(t, err, common.ErrKeyDoesNotExist)
+	for _, tc := range tcs {
+		v, errGot := sstDB.Get(tc.record.k)
+		if tc.errWant != nil {
+			require.ErrorIs(t, errGot, tc.errWant)
+		} else {
+			require.NoError(t, errGot)
+			require.Equal(t, tc.record.v, v)
+		}
+	}
 }
 
 func TestSSTableRangeScan(t *testing.T) {
@@ -81,9 +126,9 @@ func TestSSTableRangeScan(t *testing.T) {
 	require.NoError(t, err)
 	sstData, err := io.ReadAll(b)
 	require.NoError(t, err)
-	dir, err := getSSTableDir(sstData)
+	dir, dirOffset, err := getSSTableDir(sstData)
 	require.NoError(t, err)
-	sstdb := SSTableDB{f: b, dir: dir}
+	sstdb := SSTableDB{f: b, dir: dir, dirOffset: dirOffset}
 
 	/* Check exact ranges + confirm if values exhausted afterwards */
 	start, end := []byte("key1"), []byte("key9")
@@ -120,4 +165,15 @@ func TestSSTableRangeScan(t *testing.T) {
 	test.IteratorTestNext(t, iterator, false, false)
 	test.IteratorTestKey(t, iterator, nil, false)
 	test.IteratorTestVal(t, iterator, nil, false)
+}
+
+func memDBWithRecords(t *testing.T, records []struct{ k, v []byte }) *MemDB {
+	t.Helper()
+	db, err := NewMemDB()
+	require.NoError(t, err)
+	for _, record := range records {
+		err := db.Put(record.k, record.v)
+		require.NoError(t, err)
+	}
+	return db
 }
