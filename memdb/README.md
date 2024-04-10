@@ -2,9 +2,9 @@
 
 Two main things that this package comprises of: memdb and sstables
 
-MemDB: In-memory database that contains data upto a certain threshold.
+**MemDB**: In-memory database that contains data upto a certain threshold.
 
-SSTables: MemDB can be flushed to disk once it exceeds a certain capacity, this representation is the SSTable (Sorted-String table)
+**SSTables**: MemDB can be flushed to disk once it exceeds a certain capacity, this representation is the SSTable (Sorted-String table)
 
 The high-level idea is that if you want to find an element, you would search the MemDB first, then the most recent SSTable, then the second most recent, and so on...
 
@@ -27,6 +27,7 @@ The high-level idea is that if you want to find an element, you would search the
     - Key-length: 4 bytes
     - Key: (key-length) bytes
     - Offset: 8 bytes
+- Note: Our key directory does not contain all SSTables, but instead keys separated by a certain (gap) e.g 10 bytes, this is what is meant by a _sparse index_
 - Thus, our SSTable file looks like
 ```
 [Dir Offset]
@@ -44,12 +45,15 @@ The high-level idea is that if you want to find an element, you would search the
 - The basic idea is that SSTables are sorted and can be read using the key directory.
 - Steps to read a key: 
     - Read the key directory into memory
-    - Perform a binary search in the struct for your key
-    - If key found in directory, seek to that particular offset in the file and extract the key:val pair.
+    - Perform a binary search in the struct for your key, find the closest key to the _left_ of your key i.e. greatest key that is smaller than or equal to your key
+    - Seek to that particular offset in the file and scan forwards until you find your key
 
 
 ## Misc
+- All our iterators are designed such that it contains a starting value before the first Next() call
+- I had initially created an SSTable where the directory contained every key, this took quite a while to change into our _sparse index_
 
 ### To dos
-- Tests for SSTables are practically unreadable, refactor them.
-- Have a look at memdb and sstable implementations for refactors.
+- Tests for SSTables are practically unreadable + don't cover a lot of edges (I feel), refactor them.
+- Code for sstables get/iterating also feels like it can be refactored.
+- Also look at memdb implementation for refactors.
