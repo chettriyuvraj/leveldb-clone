@@ -77,7 +77,7 @@ func NewSSTableDB(f io.ReadSeekCloser) (db SSTableDB, err error) {
 Format specified in README
 */
 
-func getSSTableData(iter common.Iterator, distBetweenIndexKeys int) (data []byte, err error) {
+func GetSSTableData(iter common.Iterator, distBetweenIndexKeys int) (data []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting SSTable: %w", err)
 	}

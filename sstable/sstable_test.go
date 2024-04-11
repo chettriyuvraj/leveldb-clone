@@ -85,7 +85,7 @@ func TestGetSSTableDir(t *testing.T) {
 
 	/* Get SSTable data for DB, convert it to dir and compare to expected dir */
 	iter := NewDummyIterator(records)
-	sstData, err := getSSTableData(iter, distBetweenIndexKeys)
+	sstData, err := GetSSTableData(iter, distBetweenIndexKeys)
 	require.NoError(t, err)
 	gotDir, _, err := getSSTableDir(sstData)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestSSTableGet(t *testing.T) {
 
 	/* Get SSTable */
 	iter := NewDummyIterator(records)
-	sstData, err := getSSTableData(iter, distBetweenIndexKeys)
+	sstData, err := GetSSTableData(iter, distBetweenIndexKeys)
 	require.NoError(t, err)
 	sstDB, err := NewSSTableDB(BytesReadWriteSeekCloser{bytes.NewReader(sstData)})
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestSSTableRangeScan(t *testing.T) {
 	}
 
 	iter := NewDummyIterator(records)
-	sstData, err := getSSTableData(iter, DEFAULTINDEXDISTANCE)
+	sstData, err := GetSSTableData(iter, DEFAULTINDEXDISTANCE)
 	require.NoError(t, err)
 	sstdb, err := NewSSTableDB(BytesReadWriteSeekCloser{bytes.NewReader(sstData)})
 	require.NoError(t, err)
