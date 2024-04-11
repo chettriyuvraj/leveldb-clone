@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	db, err := db.NewDB()
+	config := db.NewDBConfig(10, false, "./db1")
+	db, err := db.NewDB(config)
 	if err != nil {
 		fmt.Printf("error initializing DB: %v", err)
 		return
