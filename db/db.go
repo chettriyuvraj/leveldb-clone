@@ -9,6 +9,7 @@ import (
 
 	"github.com/chettriyuvraj/leveldb-clone/common"
 	"github.com/chettriyuvraj/leveldb-clone/memdb"
+	"github.com/chettriyuvraj/leveldb-clone/sstable"
 	"github.com/chettriyuvraj/leveldb-clone/wal"
 )
 
@@ -21,7 +22,7 @@ type DB struct {
 	dirName    string
 	memdb      *memdb.MemDB
 	memdbLimit int /* Max size of memdb before flush */
-	sstables   []memdb.SSTableDB
+	sstables   []sstable.SSTableDB
 	log        *wal.WAL
 }
 
@@ -156,7 +157,7 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 			return errors.Join(ErrSSTableCreate, err)
 		}
 
-		sstable, err := memdb.OpenSSTableDB(sstPath)
+		sstable, err := sstable.OpenSSTableDB(sstPath)
 		if err != nil {
 			return errors.Join(ErrSSTableCreate, err)
 		}
@@ -259,7 +260,7 @@ func getNextSSTableName(dirName string) (string, error) {
 	return fmt.Sprintf("%s%d", DEFAULTSSTFILENAME, curSSTFileIdx), nil
 }
 
-func getExistingSSTables(dirName string) (sstables []memdb.SSTableDB, err error) {
+func getExistingSSTables(dirName string) (sstables []sstable.SSTableDB, err error) {
 	dirEntries, err := os.ReadDir(dirName)
 	if err != nil {
 		return nil, err
@@ -275,7 +276,7 @@ func getExistingSSTables(dirName string) (sstables []memdb.SSTableDB, err error)
 
 	for _, filename := range sstFileNames {
 		path := filepath.Join(dirName, filename)
-		sst, err := memdb.OpenSSTableDB(path)
+		sst, err := sstable.OpenSSTableDB(path)
 		if err != nil {
 			return nil, err
 		}
