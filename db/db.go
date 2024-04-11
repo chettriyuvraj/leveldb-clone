@@ -21,7 +21,13 @@ type DB struct {
 	dirName    string
 	memdb      *memdb.MemDB
 	memdbLimit int /* Max size of memdb before flush */
+	sstables   []memdb.SSTableDB
 	log        *wal.WAL
+}
+
+type DBConfig struct {
+	memdbLimit int
+	createNew  bool
 }
 
 var ErrMemDB = errors.New("error while querying memdb")
@@ -32,13 +38,13 @@ var ErrWALReplay = errors.New("error replaying records from WAL")
 var ErrSSTableCreate = errors.New("error creaeting SSTable file")
 
 /* Initialize DB only using this function */
-func NewDB(dirName string, memdbLimit int) (*DB, error) {
+func NewDB(dirName string, config DBConfig) (*DB, error) {
 	/* Create directory for DB */
 	exists, err := fileOrDirExists(dirName)
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
 	}
-	if exists {
+	if exists && config.createNew {
 		err := emptyAllFiles(dirName)
 		if err != nil {
 			return nil, err
@@ -62,7 +68,7 @@ func NewDB(dirName string, memdbLimit int) (*DB, error) {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 
-	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: memdbLimit}, nil
+	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: config.memdbLimit}, nil
 }
 
 /* DB is attached with a default WAL, but we have the option to attach our own as well */
@@ -154,6 +160,12 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 		if err != nil {
 			return errors.Join(ErrSSTableCreate, err)
 		}
+
+		sstable, err := memdb.OpenSSTableDB(sstPath)
+		if err != nil {
+			return errors.Join(ErrSSTableCreate, err)
+		}
+		db.sstables = append(db.sstables, sstable)
 
 		/* Truncate log file and seek to the start */
 		err = os.Truncate(db.log.Filename(), 0)

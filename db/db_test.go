@@ -11,11 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const TESTDBDIR, TESTMEMDBLIMIT = "testDB", 10
+const TESTDBDIR = "testDB"
+
+var TESTDBCONFIG DBConfig = DBConfig{
+	memdbLimit: 10,
+	createNew:  true,
+}
 
 /* Workaround done exclusively to match signature with test suite */
 func NewDBAsInterface() common.DB {
-	db, _ := NewDB(TESTDBDIR, TESTMEMDBLIMIT)
+	db, _ := NewDB(TESTDBDIR, TESTDBCONFIG)
 	return db
 }
 
@@ -61,7 +66,7 @@ func TestWAL(t *testing.T) {
 	}
 
 	/* Init db1 and populate */
-	db1, err := NewDB(TESTDBDIR, TESTMEMDBLIMIT)
+	db1, err := NewDB(TESTDBDIR, TESTDBCONFIG)
 	require.NoError(t, err)
 	defer db1.Close()
 
@@ -77,7 +82,7 @@ func TestWAL(t *testing.T) {
 	}
 
 	/* Use the same WAL to populate db2 and compare final values */
-	db2, err := NewDB(TESTDBDIR, TESTMEMDBLIMIT)
+	db2, err := NewDB(TESTDBDIR, TESTDBCONFIG)
 	require.NoError(t, err)
 	defer db2.Close()
 	err = db2.Replay()
@@ -109,7 +114,7 @@ func TestWAL(t *testing.T) {
 }
 
 func TestGetNextSSTableName(t *testing.T) {
-	_, err := NewDB(TESTDBDIR, TESTMEMDBLIMIT)
+	_, err := NewDB(TESTDBDIR, TESTDBCONFIG)
 	require.NoError(t, err)
 	defer cleanupTestDB(t)
 	for i := 1; i <= 5; i++ {
