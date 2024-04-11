@@ -14,7 +14,7 @@ import (
 var TESTDBCONFIG DBConfig = DBConfig{
 	dirName:    "testDB",
 	memdbLimit: 10,
-	createNew:  true,
+	createNew:  true, /* Each test will create a new db */
 }
 
 /* Workaround done exclusively to match signature with test suite */
