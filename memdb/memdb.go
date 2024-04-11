@@ -17,10 +17,12 @@ const (
 	DEFAULTINDEXDISTANCE = 15
 )
 
+var ErrEmptyKeyNotAllowed = errors.New("no SSTable data to write")
 var ErrNoSSTableDataToWrite = errors.New("no SSTable data to write")
 
 type MemDB struct {
 	skiplist.SkipList
+	size int /* Sum of sizes of the k-v pairs */
 }
 type MemDBIterator struct {
 	*MemDB
@@ -42,6 +44,10 @@ type SSTableDirEntry struct {
 
 func (db *MemDB) String() string {
 	return db.SkipList.String()
+}
+
+func (db *MemDB) Size() int {
+	return db.size
 }
 
 func NewMemDB() (*MemDB, error) {
@@ -67,21 +73,48 @@ func (db *MemDB) Has(key []byte) (ret bool, err error) {
 /* Note: Not allowing empty keys */
 func (db *MemDB) Put(key, val []byte) error {
 	if bytes.Equal(key, []byte{}) {
-		return common.ErrKeyDoesNotExist
+		return ErrEmptyKeyNotAllowed
 	}
+
+	/* Check if key already exists */
+	prevVal, err := db.Get(key)
+	keyAlreadyExists := true
+	if err != nil {
+		if !errors.Is(err, common.ErrKeyDoesNotExist) {
+			return err
+		}
+		keyAlreadyExists = false
+	}
+
 	if err := db.Insert(key, val); err != nil {
 		return err
 	}
+
+	/* Modify db size depending on whether key already existed or not */
+	if keyAlreadyExists {
+		db.size += len(val) - len(prevVal)
+	} else {
+		db.size += len(key) + len(val)
+	}
+
 	return nil
 }
 
 func (db *MemDB) Delete(key []byte) error {
+	/* Get value of key if it already exists */
+	val, err := db.Get(key)
+	if err != nil { /* Return err regardless of whether it is actual error / key does not exist error */
+		return err
+	}
+
 	if err := db.SkipList.Delete(key); err != nil { /* Not using embedded skiplist method here directly as it is the same as db method name (Delete) */
 		if errors.Is(err, skiplist.ErrKeyDoesNotExist) {
 			return common.ErrKeyDoesNotExist
 		}
 		return err
 	}
+
+	db.size -= len(key) + len(val)
 	return nil
 }
 

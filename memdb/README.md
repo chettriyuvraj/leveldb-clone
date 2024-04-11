@@ -57,3 +57,4 @@ The high-level idea is that if you want to find an element, you would search the
 - Tests for SSTables are practically unreadable + don't cover a lot of edges (I feel), refactor them.
 - Code for sstables get/iterating also feels like it can be refactored.
 - Also look at memdb implementation for refactors.
+- DB Size computations not tested

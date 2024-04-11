@@ -11,7 +11,7 @@ import (
 
 /* Workaround done exclusively to match signature with test suite */
 func newMemDBAsInterface() common.DB {
-	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL)}
+	return &MemDB{*skiplist.NewSkipList(P, MAXLEVEL), 0}
 }
 
 func newMemDBIteratorAsInterface(db common.DB) common.Iterator {
