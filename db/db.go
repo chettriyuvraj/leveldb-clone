@@ -15,13 +15,13 @@ import (
 const (
 	DEFAULTWALFILENAME = "log"
 	DEFAULTSSTFILENAME = "sst"
-	MEMDBLIMIT         = 10 /* 10 bytes - counting only the sizes of keys and vals, not the associated metadata */
 )
 
 type DB struct {
-	dirName string
-	memdb   *memdb.MemDB
-	log     *wal.WAL
+	dirName    string
+	memdb      *memdb.MemDB
+	memdbLimit int /* Max size of memdb before flush */
+	log        *wal.WAL
 }
 
 var ErrMemDB = errors.New("error while querying memdb")
@@ -32,7 +32,7 @@ var ErrWALReplay = errors.New("error replaying records from WAL")
 var ErrSSTableCreate = errors.New("error creaeting SSTable file")
 
 /* Initialize DB only using this function */
-func NewDB(dirName string) (*DB, error) {
+func NewDB(dirName string, memdbLimit int) (*DB, error) {
 	/* Create directory for DB */
 	exists, err := fileOrDirExists(dirName)
 	if err != nil {
@@ -62,7 +62,7 @@ func NewDB(dirName string) (*DB, error) {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 
-	return &DB{memdb: memdb, log: log, dirName: dirName}, nil
+	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: memdbLimit}, nil
 }
 
 /* DB is attached with a default WAL, but we have the option to attach our own as well */
@@ -136,7 +136,7 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 	dataSize := len(key) + len(val)
 
 	/* Check if Put will exceed memdb limit */
-	if db.memdb.Size()+dataSize > MEMDBLIMIT {
+	if db.memdb.Size()+dataSize > db.memdbLimit {
 		/* Flush to SSTable */
 		filename, err := getNextSSTableName(db.dirName)
 		if err != nil {

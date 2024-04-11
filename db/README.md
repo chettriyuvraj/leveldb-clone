@@ -11,3 +11,4 @@ This db aggregates the WAL, memdb and sstables
 
 - RangeScan and Delete tests are failing because we don't search both SST + mem
 - We are deleting files after tests using emptyAllFiles  - feels kindof hacky - infact whereever the function is used - feels kindof hacky
+- Can eventually pass configs such as db name, memdb limit, level-config as one Config{} struct
