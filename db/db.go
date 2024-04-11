@@ -27,7 +27,7 @@ type DB struct {
 
 type DBConfig struct {
 	memdbLimit int
-	createNew  bool
+	createNew  bool /* Should we create new DB if dirName already exists? */
 	dirName    string
 }
 
@@ -37,6 +37,10 @@ var ErrWALPUT = errors.New("error appending PUT to WAL")
 var ErrWALDELETE = errors.New("error appending DELETE to WAL")
 var ErrWALReplay = errors.New("error replaying records from WAL")
 var ErrSSTableCreate = errors.New("error creaeting SSTable file")
+
+func NewDBConfig(memdbLimit int, createNew bool, dirName string) DBConfig {
+	return DBConfig{memdbLimit: memdbLimit, createNew: createNew, dirName: dirName}
+}
 
 /* Initialize DB only using this function */
 func NewDB(config DBConfig) (*DB, error) {
