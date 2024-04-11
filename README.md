@@ -20,3 +20,8 @@ This is a LevelDB clone that seeks to implement ideas from LevelDB including
     - TODO: Delete and RangeScan
 - **LSM Trees/Levelled Compaction**:
     - To start
+
+
+## Misc
+
+- Take a day to refactor once completed
