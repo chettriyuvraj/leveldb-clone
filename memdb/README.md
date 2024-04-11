@@ -52,6 +52,7 @@ The high-level idea is that if you want to find an element, you would search the
 ## Misc
 - All our iterators are designed such that it contains a starting value before the first Next() call
 - I had initially created an SSTable where the directory contained every key, this took quite a while to change into our _sparse index_
+- An extra search op done to change db size for both get and put - to preserve simplicity instead of changing interface
 
 ### To dos
 - Tests for SSTables are practically unreadable + don't cover a lot of edges (I feel), refactor them.
