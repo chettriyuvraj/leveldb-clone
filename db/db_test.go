@@ -20,17 +20,10 @@ func NewDBAsInterface() common.DB {
 }
 
 func cleanupTestDB(t *testing.T) {
-	logPath := filepath.Join(TESTDBDIR, DEFAULTWALFILENAME)
-	exists, err := fileOrDirExists(logPath)
+	exists, err := fileOrDirExists(TESTDBDIR)
 	require.NoError(t, err)
 	if exists {
-		err := os.Remove(logPath)
-		require.NoError(t, err)
-	}
-
-	exists, err = fileOrDirExists(TESTDBDIR)
-	require.NoError(t, err)
-	if exists {
+		emptyAllFiles(TESTDBDIR) /* Assuming it contains only files */
 		err := os.Remove(TESTDBDIR)
 		require.NoError(t, err)
 	}

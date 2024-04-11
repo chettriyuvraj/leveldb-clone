@@ -22,7 +22,6 @@ type DB struct {
 	dirName string
 	memdb   *memdb.MemDB
 	log     *wal.WAL
-	memSize int /* Size of memdb, only counting the k:v pairs */
 }
 
 var ErrMemDB = errors.New("error while querying memdb")
@@ -38,6 +37,12 @@ func NewDB(dirName string) (*DB, error) {
 	exists, err := fileOrDirExists(dirName)
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
+	}
+	if exists {
+		err := emptyAllFiles(dirName)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if !exists {
 		err := os.Mkdir(dirName, 0777)
@@ -131,7 +136,7 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 	dataSize := len(key) + len(val)
 
 	/* Check if Put will exceed memdb limit */
-	if db.memSize+dataSize > MEMDBLIMIT {
+	if db.memdb.Size()+dataSize > MEMDBLIMIT {
 		/* Flush to SSTable */
 		filename, err := getNextSSTableName(db.dirName)
 		if err != nil {
@@ -166,8 +171,6 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 			return errors.Join(ErrSSTableCreate, err)
 		}
 		db.memdb = memdb
-
-		db.memSize = 0
 	}
 
 	err := db.log.Append(key, val, wal.PUT)
@@ -179,7 +182,6 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 		return errors.Join(ErrMemDB, err)
 	}
 
-	db.memSize += dataSize
 	return nil
 }
 
@@ -260,4 +262,27 @@ func fileOrDirExists(path string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func emptyAllFiles(dirName string) error {
+	dirEntries, err := os.ReadDir(dirName)
+	if err != nil {
+		return fmt.Errorf("error reading dir entries to empty %w", err)
+	}
+
+	for _, dirEntry := range dirEntries {
+		dirEntryPath := filepath.Join(dirName, dirEntry.Name())
+		info, err := os.Stat(dirEntryPath)
+		if err != nil {
+			return fmt.Errorf("error emptying dir entries %w", err)
+		}
+
+		if !info.IsDir() {
+			err := os.Remove(dirEntryPath)
+			if err != nil {
+				return fmt.Errorf("error emptying dir entries %w", err)
+			}
+		}
+	}
+	return nil
 }
