@@ -64,8 +64,15 @@ func NewDB(config DBConfig) (*DB, error) {
 		}
 	}
 
+	/* Attach WAL */
 	logPath := filepath.Join(dirName, DEFAULTWALFILENAME)
 	log, err := wal.Open(logPath)
+	if err != nil {
+		return nil, errors.Join(ErrInitDB, err)
+	}
+
+	/* Attach SSTables if they exist */
+	sstables, err := getExistingSSTables(dirName)
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
 	}
@@ -75,7 +82,7 @@ func NewDB(config DBConfig) (*DB, error) {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 
-	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: config.memdbLimit}, nil
+	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: config.memdbLimit, sstables: sstables}, nil
 }
 
 /* DB is attached with a default WAL, but we have the option to attach our own as well */
@@ -100,28 +107,9 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 }
 
 func (db *DB) searchSSTables(key []byte) (val []byte, err error) {
-	/* Grab all sst file names - we are sure that any 'DEFAULTSSTFILENAME' belongs to sst files only */
-	dirEntries, err := os.ReadDir(db.dirName)
-	if err != nil {
-		return nil, fmt.Errorf("error searching for sstable filenames: %w", err)
-	}
-
-	sstFileNames := []string{}
-	for _, dirEntry := range dirEntries {
-		if strings.HasPrefix(dirEntry.Name(), DEFAULTSSTFILENAME) {
-			sstFileNames = append(sstFileNames, dirEntry.Name())
-		}
-	}
-
 	/* Search each sstable */
-	for _, sstFileName := range sstFileNames {
-		sstFilePath := filepath.Join(db.dirName, sstFileName)
-		db, err := memdb.OpenSSTableDB(sstFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("error opening sstables: %w", err)
-		}
-
-		val, err := db.Get(key)
+	for _, sst := range db.sstables {
+		val, err := sst.Get(key)
 		if err != nil {
 			if !errors.Is(err, common.ErrKeyDoesNotExist) {
 				return nil, fmt.Errorf("error searching sstables: %w", err)
@@ -269,6 +257,32 @@ func getNextSSTableName(dirName string) (string, error) {
 
 	curSSTFileIdx := len(sstFileNames) + 1
 	return fmt.Sprintf("%s%d", DEFAULTSSTFILENAME, curSSTFileIdx), nil
+}
+
+func getExistingSSTables(dirName string) (sstables []memdb.SSTableDB, err error) {
+	dirEntries, err := os.ReadDir(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	/* Grab all sst file names - we are sure that any prefix '{DEFAULTSSTFILENAME}' belongs to sst files only */
+	sstFileNames := []string{}
+	for _, dirEntry := range dirEntries {
+		if strings.HasPrefix(dirEntry.Name(), DEFAULTSSTFILENAME) {
+			sstFileNames = append(sstFileNames, dirEntry.Name())
+		}
+	}
+
+	for _, filename := range sstFileNames {
+		path := filepath.Join(dirName, filename)
+		sst, err := memdb.OpenSSTableDB(path)
+		if err != nil {
+			return nil, err
+		}
+		sstables = append(sstables, sst)
+	}
+
+	return sstables, nil
 }
 
 func fileOrDirExists(path string) (bool, error) {
