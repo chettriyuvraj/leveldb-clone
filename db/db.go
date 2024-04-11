@@ -28,6 +28,7 @@ type DB struct {
 type DBConfig struct {
 	memdbLimit int
 	createNew  bool
+	dirName    string
 }
 
 var ErrMemDB = errors.New("error while querying memdb")
@@ -38,7 +39,9 @@ var ErrWALReplay = errors.New("error replaying records from WAL")
 var ErrSSTableCreate = errors.New("error creaeting SSTable file")
 
 /* Initialize DB only using this function */
-func NewDB(dirName string, config DBConfig) (*DB, error) {
+func NewDB(config DBConfig) (*DB, error) {
+	dirName := config.dirName
+
 	/* Create directory for DB */
 	exists, err := fileOrDirExists(dirName)
 	if err != nil {

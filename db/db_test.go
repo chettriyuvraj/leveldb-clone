@@ -11,25 +11,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const TESTDBDIR = "testDB"
-
 var TESTDBCONFIG DBConfig = DBConfig{
+	dirName:    "testDB",
 	memdbLimit: 10,
 	createNew:  true,
 }
 
 /* Workaround done exclusively to match signature with test suite */
 func NewDBAsInterface() common.DB {
-	db, _ := NewDB(TESTDBDIR, TESTDBCONFIG)
+	db, _ := NewDB(TESTDBCONFIG)
 	return db
 }
 
 func cleanupTestDB(t *testing.T) {
-	exists, err := fileOrDirExists(TESTDBDIR)
+	exists, err := fileOrDirExists(TESTDBCONFIG.dirName)
 	require.NoError(t, err)
 	if exists {
-		emptyAllFiles(TESTDBDIR) /* Assuming it contains only files */
-		err := os.Remove(TESTDBDIR)
+		emptyAllFiles(TESTDBCONFIG.dirName) /* Assuming it contains only files */
+		err := os.Remove(TESTDBCONFIG.dirName)
 		require.NoError(t, err)
 	}
 }
@@ -66,7 +65,7 @@ func TestWAL(t *testing.T) {
 	}
 
 	/* Init db1 and populate */
-	db1, err := NewDB(TESTDBDIR, TESTDBCONFIG)
+	db1, err := NewDB(TESTDBCONFIG)
 	require.NoError(t, err)
 	defer db1.Close()
 
@@ -82,7 +81,7 @@ func TestWAL(t *testing.T) {
 	}
 
 	/* Use the same WAL to populate db2 and compare final values */
-	db2, err := NewDB(TESTDBDIR, TESTDBCONFIG)
+	db2, err := NewDB(TESTDBCONFIG)
 	require.NoError(t, err)
 	defer db2.Close()
 	err = db2.Replay()
@@ -114,18 +113,18 @@ func TestWAL(t *testing.T) {
 }
 
 func TestGetNextSSTableName(t *testing.T) {
-	_, err := NewDB(TESTDBDIR, TESTDBCONFIG)
+	_, err := NewDB(TESTDBCONFIG)
 	require.NoError(t, err)
 	defer cleanupTestDB(t)
 	for i := 1; i <= 5; i++ {
 		/* Check if next sst filename for "test" directory correct - since dir is empty we should get "sst1", "sst2"...in order after creating each one */
 		filenameWant := fmt.Sprintf("%s%d", DEFAULTSSTFILENAME, i)
-		filenameGot, err := getNextSSTableName(TESTDBDIR)
+		filenameGot, err := getNextSSTableName(TESTDBCONFIG.dirName)
 		require.NoError(t, err)
 		require.Equal(t, filenameWant, filenameGot)
 
 		/* Create the sst filename */
-		sstPath := filepath.Join(TESTDBDIR, filenameWant)
+		sstPath := filepath.Join(TESTDBCONFIG.dirName, filenameWant)
 		_, err = os.Create(sstPath)
 		require.NoError(t, err)
 		defer os.Remove(sstPath)
