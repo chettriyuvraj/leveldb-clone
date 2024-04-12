@@ -47,6 +47,12 @@ func BenchmarkDB(b *testing.B) {
 func TestWAL(t *testing.T) {
 	defer cleanupTestDB(t)
 
+	TESTWALCONFIG := DBConfig{
+		dirName:    TESTDBCONFIG.dirName,
+		memdbLimit: 50,    /* Make WAL large enough to fit all data */
+		createNew:  false, /* Don't create new ss tables / db files */
+	}
+
 	const (
 		DELETE = iota
 		PUT
@@ -57,7 +63,7 @@ func TestWAL(t *testing.T) {
 		op   int
 	}{
 		{k: []byte("key1"), v: []byte("val1"), op: PUT},
-		{k: []byte("key2"), v: []byte("val3"), op: PUT},
+		{k: []byte("key2"), v: []byte("val2"), op: PUT},
 		{k: []byte("key3"), v: []byte("val3"), op: PUT},
 		{k: []byte("key4"), v: []byte("val4"), op: PUT},
 		{k: []byte("key4"), op: DELETE},
@@ -65,7 +71,7 @@ func TestWAL(t *testing.T) {
 	}
 
 	/* Init db1 and populate */
-	db1, err := NewDB(TESTDBCONFIG)
+	db1, err := NewDB(TESTWALCONFIG)
 	require.NoError(t, err)
 	defer db1.Close()
 
@@ -80,8 +86,8 @@ func TestWAL(t *testing.T) {
 		}
 	}
 
-	/* Use the same WAL to populate db2 and compare final values */
-	db2, err := NewDB(TESTDBCONFIG)
+	/* Use the same WAL + retain SSTables */
+	db2, err := NewDB(TESTWALCONFIG)
 	require.NoError(t, err)
 	defer db2.Close()
 	err = db2.Replay()
@@ -92,7 +98,7 @@ func TestWAL(t *testing.T) {
 		exists bool
 	}{
 		{k: []byte("key1"), v: []byte("val1"), exists: true},
-		{k: []byte("key2"), v: []byte("val3"), exists: true},
+		{k: []byte("key2"), v: []byte("val2"), exists: true},
 		{k: []byte("key3"), exists: false},
 		{k: []byte("key4"), exists: false},
 	}
