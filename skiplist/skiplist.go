@@ -37,6 +37,10 @@ func NewNode(key, val, metadata []byte) *Node {
 	return node
 }
 
+func (node *Node) Metadata() []byte {
+	return node.metadata
+}
+
 func (sl *SkipList) Search(key []byte) *Node {
 	/* First search for the insertion spot using a dummy search node with the same key*/
 	node, dummySearchNode := sl.head, NewNode(key, nil, nil)
