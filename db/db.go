@@ -117,6 +117,10 @@ func (db *DB) searchSSTables(key []byte) (val []byte, err error) {
 			}
 			continue
 		}
+		/* Tombstone encountered - in SSTables, values of length 0 imply tombstones */
+		if val == nil {
+			break
+		}
 		return val, nil
 	}
 
@@ -135,6 +139,10 @@ func (db *DB) Has(key []byte) (ret bool, err error) {
 }
 
 func (db *DB) Put(key, val []byte) error { // to modify in memdb
+	if len(val) == 0 {
+		return common.ErrValDoesNotExist
+	}
+
 	dataSize := len(key) + len(val)
 
 	/* Check if Put will exceed memdb limit */
@@ -201,16 +209,24 @@ func (db *DB) Delete(key []byte) error { // to modify in memdb
 		}
 	}
 
-	if err := db.memdb.Delete(key); err != nil {
+	/* Check if key exists */
+	if _, err := db.Get(key); err != nil {
+		return err
+	}
+
+	/* Insert tombstone only if key exists */
+	if err := db.memdb.InsertTombstone(key); err != nil {
 		return errors.Join(ErrMemDB, err)
 	}
 
 	return nil
 }
 
+/* TODO: Implement range scans with ss tables */
 func (db *DB) RangeScan(start, limit []byte) (common.Iterator, error) {
-	iter := memdb.NewMemDBIterator(db.memdb, start, limit)
+	iter := memdb.NewMemDBIterator(db.memdb, start, limit, true)
 	return iter, iter.Error()
+
 }
 
 func (db *DB) Replay() error {
