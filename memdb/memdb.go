@@ -17,6 +17,11 @@ const (
 	DEFAULTINDEXDISTANCE = 15
 )
 
+const (
+	REGULARNODE = iota
+	TOMBSTONENODE
+)
+
 var ErrEmptyKeyNotAllowed = errors.New("empty key not allowed")
 
 type MemDB struct {
@@ -28,6 +33,7 @@ type MemDBIterator struct {
 	startKey, limitKey []byte
 	curNode            *skiplist.Node
 	hasEnded           bool
+	skipTombstones     bool
 	err                error
 }
 
@@ -45,7 +51,7 @@ func NewMemDB() (*MemDB, error) {
 
 func (db *MemDB) Get(key []byte) (val []byte, err error) {
 	node := db.Search(key)
-	if node == nil {
+	if node == nil || bytes.Equal(node.Metadata(), []byte{TOMBSTONENODE}) {
 		return nil, common.ErrKeyDoesNotExist
 	}
 	return node.Val(), nil
@@ -65,7 +71,7 @@ func (db *MemDB) Put(key, val []byte) error {
 		return ErrEmptyKeyNotAllowed
 	}
 
-	/* Check if key already exists */
+	/* Check if key already exists - this is actually for updating the size of memdb */
 	prevVal, err := db.Get(key)
 	keyAlreadyExists := true
 	if err != nil {
@@ -75,7 +81,7 @@ func (db *MemDB) Put(key, val []byte) error {
 		keyAlreadyExists = false
 	}
 
-	if err := db.Insert(key, val); err != nil {
+	if err := db.Insert(key, val, []byte{REGULARNODE}); err != nil {
 		return err
 	}
 
@@ -90,25 +96,23 @@ func (db *MemDB) Put(key, val []byte) error {
 }
 
 func (db *MemDB) Delete(key []byte) error {
-	/* Get value of key if it already exists */
+	/* Get value of key if it already exists - we will insert a tombstone only if record exists */
 	val, err := db.Get(key)
 	if err != nil { /* Return err regardless of whether it is actual error / key does not exist error */
 		return err
 	}
 
-	if err := db.SkipList.Delete(key); err != nil { /* Not using embedded skiplist method here directly as it is the same as db method name (Delete) */
-		if errors.Is(err, skiplist.ErrKeyDoesNotExist) {
-			return common.ErrKeyDoesNotExist
-		}
-		return err
+	/* Delete will insert a tombstone node - we use the same value as it's value so that we know the node was deleted when it had this val*/
+	if err := db.Insert(key, nil, []byte{TOMBSTONENODE}); err != nil {
+		return fmt.Errorf("error deleting node from memdb")
 	}
 
-	db.size -= len(key) + len(val)
+	db.size += len(key) + len(val)
 	return nil
 }
 
 /* Note: limitKey -> nil indicates scan till end of range */
-func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
+func NewMemDBIterator(db *MemDB, startKey, limitKey []byte, skipTombstones bool) *MemDBIterator {
 	iter := MemDBIterator{MemDB: db, startKey: startKey, limitKey: limitKey}
 
 	if bytes.Compare(startKey, limitKey) > 0 && limitKey != nil {
@@ -127,12 +131,13 @@ func NewMemDBIterator(db *MemDB, startKey, limitKey []byte) *MemDBIterator {
 }
 
 func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
-	iter := NewMemDBIterator(db, start, limit)
+	iter := NewMemDBIterator(db, start, limit, true)
 	return iter, iter.Error()
 }
 
+/* Gives entire data including tombstones */
 func (db *MemDB) FullScan() (common.Iterator, error) {
-	iter := NewMemDBIterator(db, db.FirstKey(), nil)
+	iter := NewMemDBIterator(db, db.FirstKey(), nil, false)
 	return iter, iter.Error()
 }
 
@@ -176,6 +181,10 @@ func (iter *MemDBIterator) Next() bool {
 		iter.curNode = nil
 		iter.hasEnded = true
 		return false
+	}
+
+	if iter.skipTombstones && bytes.Equal(iter.curNode.Metadata(), []byte{TOMBSTONENODE}) {
+		return iter.Next()
 	}
 
 	return true

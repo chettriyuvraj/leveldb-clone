@@ -41,11 +41,14 @@ func TestFullScan(t *testing.T) {
 
 	/* Test non-empty db */
 	tcs := []struct {
-		k, v []byte
+		k, v        []byte
+		isTombstone bool
 	}{
 		{k: []byte("key1"), v: []byte("val1")},
 		{k: []byte("key2"), v: []byte("val2")},
-		{k: []byte("key3"), v: []byte("val3")},
+		{k: []byte("key3"), v: []byte("val3"), isTombstone: true},
+		{k: []byte("key4"), v: []byte("val4"), isTombstone: true},
+		{k: []byte("key5"), v: []byte("val5")},
 	}
 
 	for i := range tcs {
@@ -57,6 +60,10 @@ func TestFullScan(t *testing.T) {
 		for _, record := range records {
 			err := db.Put(record.k, record.v)
 			require.NoError(t, err)
+			if record.isTombstone {
+				err := db.Delete(record.k)
+				require.NoError(t, err)
+			}
 		}
 
 		/* Verify if we can get entire subset using FullScan() */
@@ -66,7 +73,11 @@ func TestFullScan(t *testing.T) {
 			recordExpected := tcs[j]
 			keyExpected, valExpected := recordExpected.k, recordExpected.v
 			test.IteratorTestKey(t, iter, keyExpected, false)
-			test.IteratorTestVal(t, iter, valExpected, false)
+			if recordExpected.isTombstone {
+				test.IteratorTestVal(t, iter, nil, false)
+			} else {
+				test.IteratorTestVal(t, iter, valExpected, false)
+			}
 			if j < i {
 				test.IteratorTestNext(t, iter, true, false)
 			}
