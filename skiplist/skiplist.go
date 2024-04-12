@@ -98,10 +98,11 @@ func (sl *SkipList) Insert(key, val, metadata []byte) error {
 		updateList[i] = node
 	}
 
-	/* If key already exists, simply update value */
+	/* If key already exists, simply update value and metadata */
 	nodeAhead := node.forward[1]
 	if sl.compareKey(newNode, nodeAhead) == 0 {
 		nodeAhead.val = val
+		nodeAhead.metadata = metadata
 		return nil
 	}
 
