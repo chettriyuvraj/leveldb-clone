@@ -9,6 +9,7 @@ var ErrKeyDoesNotExist = errors.New("key does not exist")
 
 type Node struct {
 	key, val []byte
+	metadata []byte /* For anyone using the skiplist, if they want to store any additional metadata */
 	forward  []*Node
 }
 
@@ -21,7 +22,7 @@ type SkipList struct {
 }
 
 func NewSkipList(p float64, maxLevel int) *SkipList {
-	skiplist := SkipList{head: NewNode(nil, nil), nil: NewNode(nil, nil), level: 1, p: p, maxLevel: maxLevel}
+	skiplist := SkipList{head: NewNode(nil, nil, nil), nil: NewNode(nil, nil, nil), level: 1, p: p, maxLevel: maxLevel}
 	skiplist.head.forward = append(skiplist.head.forward, skiplist.nil)
 	return &skiplist
 }
@@ -30,15 +31,15 @@ func NewSkipList(p float64, maxLevel int) *SkipList {
 - Initialize new node using this function ONLY
 - Returns new node after appending a dummy level to 0th index
 */
-func NewNode(key, val []byte) *Node {
-	node := &Node{key: key, val: val}
+func NewNode(key, val, metadata []byte) *Node {
+	node := &Node{key: key, val: val, metadata: metadata}
 	node.forward = append(node.forward, &Node{})
 	return node
 }
 
 func (sl *SkipList) Search(key []byte) *Node {
 	/* First search for the insertion spot using a dummy search node with the same key*/
-	node, dummySearchNode := sl.head, NewNode(key, nil)
+	node, dummySearchNode := sl.head, NewNode(key, nil, nil)
 	for i := sl.level; i > 0; i-- {
 		for sl.compareKey(node.forward[i], dummySearchNode) < 0 { /* As long as node's key is less than forward[i] */
 			node = node.forward[i]
@@ -58,7 +59,7 @@ func (sl *SkipList) Search(key []byte) *Node {
 */
 func (sl *SkipList) SearchClosest(key []byte) *Node {
 	/* First search for the insertion spot using a dummy search node with the same key*/
-	node, dummySearchNode := sl.head, NewNode(key, nil)
+	node, dummySearchNode := sl.head, NewNode(key, nil, nil)
 	for i := sl.level; i > 0; i-- {
 		for sl.compareKey(node.forward[i], dummySearchNode) < 0 { /* As long as node's key is less than forward[i] */
 			node = node.forward[i]
@@ -77,12 +78,12 @@ func (sl *SkipList) SearchClosest(key []byte) *Node {
 	return nil
 }
 
-func (sl *SkipList) Insert(key, val []byte) error {
+func (sl *SkipList) Insert(key, val, metadata []byte) error {
 	/* Init */
-	node, newNode := sl.head, NewNode(key, val)
-	updateList := []*Node{NewNode(nil, nil)} /* update list is 1-indexed, so 0th node is a dummy node */
+	node, newNode := sl.head, NewNode(key, val, metadata)
+	updateList := []*Node{NewNode(nil, nil, nil)} /* update list is 1-indexed, so 0th node is a dummy node */
 	for i := 1; i <= sl.maxLevel; i++ {
-		updateList = append(updateList, NewNode(nil, nil))
+		updateList = append(updateList, NewNode(nil, nil, nil))
 	}
 
 	/* First search for the insertion spot */
@@ -119,10 +120,10 @@ func (sl *SkipList) Insert(key, val []byte) error {
 
 func (sl *SkipList) Delete(key []byte) error {
 	/* Init */
-	node, dummySearchNode := sl.head, NewNode(key, nil)
-	updateList := []*Node{NewNode(nil, nil)} /* update list is 1-indexed, so 0th node is a dummy node */
+	node, dummySearchNode := sl.head, NewNode(key, nil, nil)
+	updateList := []*Node{NewNode(nil, nil, nil)} /* update list is 1-indexed, so 0th node is a dummy node */
 	for i := 1; i <= sl.maxLevel; i++ {
-		updateList = append(updateList, NewNode(nil, nil))
+		updateList = append(updateList, NewNode(nil, nil, nil))
 	}
 
 	/* First search for the insertion spot */

@@ -36,7 +36,7 @@ func TestInsertAndSearch(t *testing.T) {
 		}
 
 		/* Validate skiplist properties after insert */
-		require.NoError(t, skiplist.Insert(k, v))
+		require.NoError(t, skiplist.Insert(k, v, nil))
 		require.NoError(t, skiplist.isValid(t))
 		require.True(t, skiplist.isSorted(t))
 
@@ -57,7 +57,7 @@ func TestDelete(t *testing.T) {
 	/* Inserting keys defined as "key1":"val1", "key2:val2" */
 	for i := 1; i <= 10; i++ {
 		k, v := []byte(fmt.Sprintf("key%d", i)), []byte(fmt.Sprintf("val%d", i))
-		err := skiplist.Insert(k, v)
+		err := skiplist.Insert(k, v, nil)
 		require.NoError(t, err)
 	}
 
