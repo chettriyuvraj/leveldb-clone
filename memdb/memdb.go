@@ -102,12 +102,19 @@ func (db *MemDB) Delete(key []byte) error {
 		return err
 	}
 
-	/* Delete will insert a tombstone node - we use the same value as it's value so that we know the node was deleted when it had this val*/
-	if err := db.Insert(key, nil, []byte{TOMBSTONENODE}); err != nil {
-		return fmt.Errorf("error deleting node from memdb")
+	/* Delete will insert a tombstone node */
+	if err := db.InsertTombstone(key); err != nil {
+		return err
 	}
 
 	db.size += len(key) + len(val)
+	return nil
+}
+
+func (db *MemDB) InsertTombstone(key []byte) error {
+	if err := db.Insert(key, nil, []byte{TOMBSTONENODE}); err != nil {
+		return fmt.Errorf("error inserting tombstone")
+	}
 	return nil
 }
 
