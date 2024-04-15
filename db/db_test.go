@@ -27,7 +27,7 @@ func cleanupTestDB(t *testing.T) {
 	exists, err := fileOrDirExists(TESTDBCONFIG.dirName)
 	require.NoError(t, err)
 	if exists {
-		emptyAllFiles(TESTDBCONFIG.dirName) /* Assuming it contains only files */
+		emptyDir(TESTDBCONFIG.dirName, true) /* Assuming it contains only files - TODO - delete compaction folder as well */
 		err := os.Remove(TESTDBCONFIG.dirName)
 		require.NoError(t, err)
 	}
@@ -140,7 +140,7 @@ func TestGetNextSSTableName(t *testing.T) {
 // func TestSSTCompaction(t *testing.T) {
 // 	TESTCOMPACTIONCONFIG := DBConfig{
 // 		dirName:    TESTDBCONFIG.dirName,
-// 		memdbLimit: 20,    /* Make mem large enough to fit SOME data => level 0 SSTs will be of this size */
+// 		memdbLimit: 13,    /* Make mem large enough to fit SOME data => level 0 SSTs will be of this size */
 // 		createNew:  false, /* Don't create new ss tables / db files */
 // 	}
 
@@ -172,6 +172,7 @@ func TestGetNextSSTableName(t *testing.T) {
 // 	/* Init db1 and populate */
 // 	db1, err := NewDB(TESTCOMPACTIONCONFIG)
 // 	require.NoError(t, err)
+// 	defer cleanupTestDB(t)
 // 	defer db1.Close()
 
 // 	for _, record := range records {
