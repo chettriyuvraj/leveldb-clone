@@ -16,6 +16,39 @@ type MergeIterator struct {
 	iters              []common.Iterator
 	heap               sstable.SSTIterHeap
 	memdbIter          common.Iterator
+	fullScan           bool
+}
+
+func NewFullMergeIterator(db *DB) (*MergeIterator, error) {
+	iter := MergeIterator{heap: sstable.SSTIterHeap{}}
+
+	/* Get iterator from memdb */
+	memdbIter, err := db.memdb.FullScan()
+	if err != nil {
+		return nil, errors.Join(ErrCreateDBIter, err)
+	}
+	if memdbIter.Key() != nil {
+		iter.memdbIter = memdbIter
+	}
+
+	/* Get iterator from all sstables */
+	for _, sst := range db.sstables {
+		sstIter, err := sst.FullScan()
+		if err != nil {
+			return nil, errors.Join(ErrCreateDBIter, err)
+		}
+		if sstIter.Key() != nil {
+			iter.iters = append(iter.iters, sstIter)
+		}
+	}
+
+	/* Initialize heap */
+	heap.Init(&iter.heap)
+	for _, validIters := range iter.iters {
+		heap.Push(&iter.heap, validIters)
+	}
+
+	return &iter, err
 }
 
 /*
