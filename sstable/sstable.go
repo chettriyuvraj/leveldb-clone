@@ -35,6 +35,7 @@ type SSTableIterator struct {
 	db             *SSTableDB
 	fileOffset     uint64
 	endKey         []byte
+	fullScan       bool
 	curKey, curVal []byte /* After first call to Value() or Key(), this is cached */
 	hasEnded       bool
 	err            error
@@ -271,6 +272,14 @@ func (db *SSTableDB) Has(key []byte) (ret bool, err error) {
 	return true, nil
 }
 
+func (db *SSTableDB) FullScan() (common.Iterator, error) {
+	iter, err := NewFullSSTableIterator(db)
+	if err != nil {
+		return nil, err
+	}
+	return iter, nil
+}
+
 func (db *SSTableDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	iter, err := NewSSTableIterator(db, start, limit)
 	if err != nil {
@@ -360,6 +369,65 @@ func NewSSTableIterator(db *SSTableDB, start, limit []byte) (*SSTableIterator, e
 	return &SSTableIterator{db: db, fileOffset: curOffset, endKey: limit, curKey: curKey, curVal: curVal}, nil
 }
 
+func NewFullSSTableIterator(db *SSTableDB) (*SSTableIterator, error) {
+	entries, entriesN := db.dir.entries, len(db.dir.entries)
+
+	/* No directory entries */
+	if entriesN == 0 {
+		return &SSTableIterator{hasEnded: true, fullScan: true}, nil
+	}
+
+	/* Seek to first key  */
+	curOffset := entries[0].offset
+	_, err := db.Seek(int64(curOffset), 0)
+	if err != nil {
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+
+	/* Add first key, val to iterator */
+	keyLen := make([]byte, 4)
+	_, err = db.f.Read(keyLen)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, fullScan: true}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += 4
+
+	curKey := make([]byte, binary.BigEndian.Uint32(keyLen))
+	_, err = db.f.Read(curKey)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, fullScan: true}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += uint64(len(curKey))
+
+	valLen := make([]byte, 4)
+	_, err = db.f.Read(valLen)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, fullScan: true}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += 4
+
+	curVal := make([]byte, binary.BigEndian.Uint32(valLen))
+	_, err = db.f.Read(curVal)
+	if err != nil {
+		if err == io.EOF {
+			return &SSTableIterator{db: db, hasEnded: true, fullScan: true}, nil
+		}
+		return nil, errors.Join(ErrNewSSTableIter, err)
+	}
+	curOffset += uint64(len(curVal))
+
+	return &SSTableIterator{db: db, fileOffset: curOffset, fullScan: true, curKey: curKey, curVal: curVal}, nil
+}
+
 /*
 - If iterator errors out other than for io.EOF, it will remain at the same offset with same k,v
 */
@@ -430,8 +498,8 @@ func (iter *SSTableIterator) Next() bool {
 	}
 	offset += uint64(len(curVal))
 
-	/* Check if range limit exceeded */
-	if bytes.Compare(curKey, iter.endKey) > 0 {
+	/* Check if range limit exceeded - unless we are full scanning*/
+	if !iter.fullScan && bytes.Compare(curKey, iter.endKey) > 0 {
 		iter.curKey, iter.curVal = nil, nil
 		iter.hasEnded = true
 		return false

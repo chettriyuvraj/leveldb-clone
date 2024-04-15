@@ -72,6 +72,7 @@ func (b BytesReadWriteSeekCloser) Close() error {
 	return nil
 }
 
+/* Implementation-specific tests */
 /* Can be more robust, but for now we are testing our ss table generation solely by comparing the directory generated */
 func TestGetSSTableDir(t *testing.T) {
 	/* Populate DB */
@@ -199,4 +200,43 @@ func TestSSTableRangeScan(t *testing.T) {
 	test.IteratorTestNext(t, iterator, false, false)
 	test.IteratorTestKey(t, iterator, nil, false)
 	test.IteratorTestVal(t, iterator, nil, false)
+}
+
+func TestFullScan(t *testing.T) {
+	records := []kvRecord{
+		{[]byte("key1"), []byte("val1")},
+		{[]byte("key2"), []byte("val2")},
+		{[]byte("key3"), []byte("val3")},
+		{[]byte("key4"), []byte("val4")},
+		{[]byte("key5"), []byte("val5")},
+	}
+
+	for i := range records {
+		/* Populate a subset of the test case records */
+		curRecords := records[:i+1]
+		dummyIter := NewDummyIterator(curRecords)
+		sstData, err := GetSSTableData(dummyIter, DEFAULTINDEXDISTANCE)
+		require.NoError(t, err)
+		db, err := NewSSTableDB(BytesReadWriteSeekCloser{bytes.NewReader(sstData)})
+		require.NoError(t, err)
+
+		/* Verify if we can get entire subset using FullScan() */
+		iter, err := db.FullScan()
+		require.NoError(t, err)
+		for j := 0; j < i+1; j++ {
+			recordExpected := curRecords[j]
+			keyExpected, valExpected := recordExpected.k, recordExpected.v
+			test.IteratorTestKey(t, iter, keyExpected, false)
+			test.IteratorTestVal(t, iter, valExpected, false)
+
+			if j < i {
+				test.IteratorTestNext(t, iter, true, false)
+			}
+		}
+
+		/* Verify if iterator exhaused after all elems output-ed */
+		test.IteratorTestNext(t, iter, false, false)
+		test.IteratorTestKey(t, iter, nil, false)
+		test.IteratorTestVal(t, iter, nil, false)
+	}
 }
