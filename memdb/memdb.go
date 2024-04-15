@@ -51,9 +51,14 @@ func NewMemDB() (*MemDB, error) {
 
 func (db *MemDB) Get(key []byte) (val []byte, err error) {
 	node := db.Search(key)
-	if node == nil || bytes.Equal(node.Metadata(), []byte{TOMBSTONENODE}) {
+	if node == nil {
 		return nil, common.ErrKeyDoesNotExist
 	}
+
+	if bytes.Equal(node.Metadata(), []byte{TOMBSTONENODE}) {
+		return nil, nil
+	}
+
 	return node.Val(), nil
 }
 
@@ -197,8 +202,13 @@ func (iter *MemDBIterator) Next() bool {
 		return false
 	}
 
-	if iter.skipTombstones && bytes.Equal(iter.curNode.Metadata(), []byte{TOMBSTONENODE}) {
-		return iter.Next()
+	if bytes.Equal(iter.curNode.Metadata(), []byte{TOMBSTONENODE}) {
+		if iter.skipTombstones {
+			return iter.Next()
+		}
+		// else {
+		// 	iter.err = errors.Join(common.ErrTombstoneEncountered, common.ErrIdxOutOfBounds)
+		// }
 	}
 
 	return true
