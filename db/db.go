@@ -224,13 +224,7 @@ func (db *DB) Delete(key []byte) error { // to modify in memdb
 
 /* TODO: Implement range scans with ss tables */
 func (db *DB) RangeScan(start, limit []byte) (common.Iterator, error) {
-	iter, err := memdb.NewMemDBIterator(db.memdb, start, limit, true)
-	if err != nil {
-		return nil, err
-	}
-
-	return iter, iter.Error()
-
+	return NewMergeIterator(db, start, limit)
 }
 
 func (db *DB) Replay() error {
