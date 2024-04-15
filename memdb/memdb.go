@@ -119,12 +119,11 @@ func (db *MemDB) InsertTombstone(key []byte) error {
 }
 
 /* Note: limitKey -> nil indicates scan till end of range */
-func NewMemDBIterator(db *MemDB, startKey, limitKey []byte, skipTombstones bool) *MemDBIterator {
+func NewMemDBIterator(db *MemDB, startKey, limitKey []byte, skipTombstones bool) (*MemDBIterator, error) {
 	iter := MemDBIterator{MemDB: db, startKey: startKey, limitKey: limitKey}
 
 	if bytes.Compare(startKey, limitKey) > 0 && limitKey != nil {
-		iter.err = common.ErrInvalidRange
-		return &iter
+		return nil, common.ErrInvalidRange
 	}
 
 	firstNode := db.SearchClosest(startKey)
@@ -134,17 +133,25 @@ func NewMemDBIterator(db *MemDB, startKey, limitKey []byte, skipTombstones bool)
 		iter.curNode = firstNode
 	}
 
-	return &iter
+	return &iter, nil
 }
 
 func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
-	iter := NewMemDBIterator(db, start, limit, true)
+	iter, err := NewMemDBIterator(db, start, limit, true)
+	if err != nil {
+		return nil, err
+	}
+
 	return iter, iter.Error()
 }
 
 /* Gives entire data including tombstones */
 func (db *MemDB) FullScan() (common.Iterator, error) {
-	iter := NewMemDBIterator(db, db.FirstKey(), nil, false)
+	iter, err := NewMemDBIterator(db, db.FirstKey(), nil, false)
+	if err != nil {
+		return nil, err
+	}
+
 	return iter, iter.Error()
 }
 

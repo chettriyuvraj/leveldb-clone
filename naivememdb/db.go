@@ -130,6 +130,7 @@ func (db *MemDB) getDBEntryByIdx(idx int) (entry *DBEntry, err error) {
 	return db.entries[idx], nil
 }
 
+/* TODO: change this to return an error (for consistentcy with other iter interfaces) */
 func NewMemDBIterator(db *MemDB) *MemDBIterator {
 	return &MemDBIterator{MemDB: db, idx: 0}
 }
