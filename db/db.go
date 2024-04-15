@@ -16,6 +16,7 @@ import (
 const (
 	DEFAULTWALFILENAME = "log"
 	DEFAULTSSTFILENAME = "sst"
+	LEVEL0SSTLIMIT     = 4
 )
 
 type DB struct {
@@ -147,46 +148,31 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 
 	/* Check if Put will exceed memdb limit */
 	if db.memdb.Size()+dataSize > db.memdbLimit {
-		/* Flush to SSTable */
-		filename, err := getNextSSTableName(db.dirName)
+		// if len(db.sstables) > LEVEL0SSTLIMIT {
+		// 	err := db.Compact()
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	return db.putToMemDB(key, val)
+		// }
+
+		err := db.flushToSSTable()
 		if err != nil {
 			return err
 		}
 
-		sstPath := filepath.Join(db.dirName, filename)
-		f, err := os.OpenFile(sstPath, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
+		err = db.resetMemDB()
 		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
+			return err
 		}
-		defer f.Close()
+	}
 
-		err = db.memdb.FlushSSTable(f)
-		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
-		}
+	return db.putToMemDB(key, val)
+}
 
-		sstable, err := sstable.OpenSSTableDB(sstPath)
-		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
-		}
-		db.sstables = append(db.sstables, sstable)
-
-		/* Truncate log file and seek to the start */
-		err = os.Truncate(db.log.Filename(), 0)
-		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
-		}
-		_, err = db.log.Seek(0, 0)
-		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
-		}
-
-		/* Create new memdb */
-		memdb, err := memdb.NewMemDB()
-		if err != nil {
-			return errors.Join(ErrSSTableCreate, err)
-		}
-		db.memdb = memdb
+func (db *DB) putToMemDB(key, val []byte) error {
+	if len(val) == 0 {
+		return common.ErrValDoesNotExist
 	}
 
 	err := db.log.Append(key, val, wal.PUT)
@@ -197,6 +183,55 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 	if err := db.memdb.Put(key, val); err != nil {
 		return errors.Join(ErrMemDB, err)
 	}
+
+	return nil
+}
+
+func (db *DB) resetMemDB() error {
+	/* Truncate log file and seek to the start */
+	err := os.Truncate(db.log.Filename(), 0)
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+	_, err = db.log.Seek(0, 0)
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+
+	/* Create new memdb */
+	memdb, err := memdb.NewMemDB()
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+	db.memdb = memdb
+
+	return nil
+}
+
+/* Flushes MemDB to SSTable */
+func (db *DB) flushToSSTable() error {
+	filename, err := getNextSSTableName(db.dirName)
+	if err != nil {
+		return err
+	}
+
+	sstPath := filepath.Join(db.dirName, filename)
+	f, err := os.OpenFile(sstPath, os.O_RDWR|os.O_CREATE, 0777) /* TODO: use lesser permissions */
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+	defer f.Close()
+
+	err = db.memdb.FlushSSTable(f)
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+
+	sstable, err := sstable.OpenSSTableDB(sstPath)
+	if err != nil {
+		return errors.Join(ErrSSTableCreate, err)
+	}
+	db.sstables = append(db.sstables, sstable)
 
 	return nil
 }
@@ -247,6 +282,10 @@ func (db *DB) Replay() error {
 			}
 		}
 	}
+	return nil
+}
+
+func (db *DB) Compact() error {
 	return nil
 }
 

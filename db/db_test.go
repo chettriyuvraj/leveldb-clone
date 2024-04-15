@@ -49,7 +49,7 @@ func TestWAL(t *testing.T) {
 
 	TESTWALCONFIG := DBConfig{
 		dirName:    TESTDBCONFIG.dirName,
-		memdbLimit: 50,    /* Make WAL large enough to fit all data */
+		memdbLimit: 50,    /* Make memdb large enough to fit all data */
 		createNew:  false, /* Don't create new ss tables / db files */
 	}
 
@@ -136,3 +136,85 @@ func TestGetNextSSTableName(t *testing.T) {
 		defer os.Remove(sstPath)
 	}
 }
+
+// func TestSSTCompaction(t *testing.T) {
+// 	TESTCOMPACTIONCONFIG := DBConfig{
+// 		dirName:    TESTDBCONFIG.dirName,
+// 		memdbLimit: 20,    /* Make mem large enough to fit SOME data => level 0 SSTs will be of this size */
+// 		createNew:  false, /* Don't create new ss tables / db files */
+// 	}
+
+// 	const (
+// 		DELETE = iota
+// 		PUT
+// 	)
+
+// 	records := []struct {
+// 		k, v []byte
+// 		op   int
+// 	}{
+// 		{k: []byte("key1"), v: []byte("val1"), op: PUT},
+// 		{k: []byte("key2"), v: []byte("val2"), op: PUT},
+// 		{k: []byte("key3"), v: []byte("val3"), op: PUT},
+// 		{k: []byte("key4"), v: []byte("val4"), op: PUT},
+// 		{k: []byte("key5"), v: []byte("val5"), op: PUT},
+// 		{k: []byte("key6"), v: []byte("val6"), op: PUT},
+// 		{k: []byte("key7"), v: []byte("val7"), op: PUT},
+// 		{k: []byte("key8"), v: []byte("val8"), op: PUT},
+// 		{k: []byte("key9"), v: []byte("val9"), op: PUT},
+// 		{k: []byte("key10"), v: []byte("val10"), op: PUT},
+// 		{k: []byte("key11"), v: []byte("val11"), op: PUT},
+// 		{k: []byte("key12"), v: []byte("val12"), op: PUT},
+// 		{k: []byte("key4"), op: DELETE},
+// 		{k: []byte("key3"), op: DELETE},
+// 	}
+
+// 	/* Init db1 and populate */
+// 	db1, err := NewDB(TESTCOMPACTIONCONFIG)
+// 	require.NoError(t, err)
+// 	defer db1.Close()
+
+// 	for _, record := range records {
+// 		switch record.op {
+// 		case PUT:
+// 			err := db1.Put(record.k, record.v)
+// 			require.NoError(t, err)
+// 		case DELETE:
+// 			err := db1.Delete(record.k)
+// 			require.NoError(t, err)
+// 		}
+// 	}
+
+// 	tcs := []struct {
+// 		k, v   []byte
+// 		exists bool
+// 	}{
+// 		{k: []byte("key1"), v: []byte("val1"), exists: true},
+// 		{k: []byte("key2"), v: []byte("val2"), exists: true},
+// 		{k: []byte("key3"), v: []byte("val3"), exists: false},
+// 		{k: []byte("key4"), v: []byte("val4"), exists: false},
+// 		{k: []byte("key5"), v: []byte("val5"), exists: true},
+// 		{k: []byte("key6"), v: []byte("val6"), exists: true},
+// 		{k: []byte("key7"), v: []byte("val7"), exists: true},
+// 		{k: []byte("key8"), v: []byte("val8"), exists: true},
+// 		{k: []byte("key9"), v: []byte("val9"), exists: true},
+// 		{k: []byte("key10"), v: []byte("val10"), exists: true},
+// 		{k: []byte("key11"), v: []byte("val11"), exists: true},
+// 		{k: []byte("key12"), v: []byte("val12"), exists: true},
+// 	}
+
+// 	/* Check if contents match up to the operations we performed */
+// 	for _, tc := range tcs {
+// 		switch tc.exists {
+// 		case true:
+// 			v, err := db1.Get(tc.k)
+// 			require.Equal(t, tc.v, v) /* Note: No repeated keys in records PUT */
+// 			require.NoError(t, err)
+// 		case false:
+// 			v, err := db1.Get(tc.k)
+// 			require.Equal(t, []byte(nil), v) /* Note: DELETES always after PUT in records so keys don't reappear */
+// 			require.Error(t, err, common.ErrKeyDoesNotExist)
+// 		}
+// 	}
+
+// }
