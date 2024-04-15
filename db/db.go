@@ -18,15 +18,16 @@ const (
 	DEFAULTSSTFILENAME   = "sst"
 	DEFAULTCOMPACTIONDIR = "compact"
 	LEVEL0SSTLIMIT       = 4
-	LEVEL1SSTFILESIZE    = 30 /* In bytes */
+	LEVEL1SSTFILESIZE    = 80 /* In bytes */
 )
 
 type DB struct {
-	dirName    string
-	memdb      *memdb.MemDB
-	memdbLimit int /* Max size of memdb before flush */
-	sstables   []sstable.SSTableDB
-	log        *wal.WAL
+	dirName         string
+	memdb           *memdb.MemDB
+	memdbLimit      int /* Max size of memdb before flush */
+	sstables        []sstable.SSTableDB
+	compactSSTables []sstable.SSTableDB
+	log             *wal.WAL
 }
 
 type DBConfig struct {
@@ -82,18 +83,17 @@ func NewDB(config DBConfig) (*DB, error) {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 	compactionDir := filepath.Join(dirName, DEFAULTCOMPACTIONDIR)
-	compactedSSTables, err := getExistingSSTables(compactionDir)
+	compactSSTables, err := getExistingSSTables(compactionDir)
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
 	}
-	sstables = append(sstables, compactedSSTables...)
 
 	memdb, err := memdb.NewMemDB()
 	if err != nil {
 		return nil, errors.Join(ErrInitDB, err)
 	}
 
-	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: config.memdbLimit, sstables: sstables}, nil
+	return &DB{memdb: memdb, log: log, dirName: dirName, memdbLimit: config.memdbLimit, sstables: sstables, compactSSTables: compactSSTables}, nil
 }
 
 /* DB is attached with a default WAL, but we have the option to attach our own as well */
@@ -124,8 +124,9 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 }
 
 func (db *DB) searchSSTables(key []byte) (val []byte, err error) {
-	/* Search each sstable */
-	for _, sst := range db.sstables {
+	tables := append(db.sstables, db.compactSSTables...)
+	/* Search each sstable; TODO : search only compacted tables which match the range of the key */
+	for _, sst := range tables {
 		val, err := sst.Get(key)
 		if err != nil {
 			if !errors.Is(err, common.ErrKeyDoesNotExist) {
@@ -163,13 +164,19 @@ func (db *DB) Put(key, val []byte) error { // to modify in memdb
 
 	/* Check if Put will exceed memdb limit */
 	if db.memdb.Size()+dataSize > db.memdbLimit {
-		// if len(db.sstables) > LEVEL0SSTLIMIT {
-		// 	err := db.compact()
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	return db.putToMemDB(key, val)
-		// }
+		if len(db.sstables) > LEVEL0SSTLIMIT {
+			err := db.compact()
+			if err != nil {
+				return err
+			}
+
+			err = db.resetMemDB()
+			if err != nil {
+				return err
+			}
+
+			return db.putToMemDB(key, val)
+		}
 
 		err := db.flushToSSTable()
 		if err != nil {
@@ -340,7 +347,7 @@ func (db *DB) compact() error {
 	}
 
 	/* Create compaction files in temp dir, then delete old compaction folder + rename temp dir + delete level 0 sstables */
-	if err = db.createCompactionFiles(compactionDirTemp, fullScanIter, totalSize/LEVEL1SSTFILESIZE); err != nil {
+	if err = db.createCompactionFiles(compactionDirTemp, fullScanIter, LEVEL1SSTFILESIZE); err != nil {
 		return errors.Join(ErrCompactionDB, err)
 	}
 
@@ -357,11 +364,12 @@ func (db *DB) compact() error {
 		return errors.Join(ErrCompactionDB, err)
 	}
 
-	if err = emptyDir(db.dirName, false); err != nil {
+	if err = removeSSTFiles(db.dirName); err != nil {
 		return errors.Join(ErrCompactionDB, err)
 	}
 
-	db.sstables, err = getExistingSSTables(compactionDir)
+	db.sstables = []sstable.SSTableDB{}
+	db.compactSSTables, err = getExistingSSTables(compactionDir)
 	if err != nil {
 		return errors.Join(ErrCompactionDB, err)
 	}
@@ -499,6 +507,29 @@ func emptyDir(dirName string, recurse bool) error {
 			err := os.Remove(dirEntryPath)
 			if err != nil {
 				return fmt.Errorf("error emptying dir entries %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func removeSSTFiles(dirName string) error {
+	dirEntries, err := os.ReadDir(dirName)
+	if err != nil {
+		return fmt.Errorf("error reading dir entries to empty %w", err)
+	}
+
+	for _, dirEntry := range dirEntries {
+		dirEntryPath := filepath.Join(dirName, dirEntry.Name())
+		info, err := os.Stat(dirEntryPath)
+		if err != nil {
+			return fmt.Errorf("error removing sst files from dir %s %w", dirName, err)
+		}
+
+		if !info.IsDir() && strings.HasPrefix(dirEntry.Name(), DEFAULTSSTFILENAME) {
+			err := os.Remove(dirEntryPath)
+			if err != nil {
+				return fmt.Errorf("error removing sst files from dir %s %w", dirName, err)
 			}
 		}
 	}

@@ -16,8 +16,14 @@ This db aggregates the WAL, memdb and sstables
 - Naming of SSTable files + naming after compaction is extremely hacky + also results in a small time frame where we are removing compaction directory and renaming a temp directory to new compaction directory
 
 ## To Dos
+- Big refactor
+    - In order to get compaction working did some hacky workarounds + some duplicate funcs like emptyDir() and removeSSTFiles()
+    - By the end of it felt really messy
+    - Compaction using filenames by index (sst1, sst2...) has also led to a lot of code
+    - 2 level compaction also kindof inextensible and feels very hardcoded
+
 - Compaction
-    - Compaction not being used currently - same key being put in multiple times, make sure that key doesn't repeat once seen in the most recent sstable
+    - Testing not robust; compaction seems to be proper though (checked with debugger) - lexiographic ordering might trip you up i.e. key1, key10 together due to lexiography after compaction
     - Currently all compaction files being checked for each key (db loads level 0 + level 1 on startup), create a _manifest_ that makes note of compaction file ranges so we don't need to load their index
 - Inconsistencies
     - MemDB implements full scan by passing limitKey as nil; SSTables and top level db implement full scan using a separate function
