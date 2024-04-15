@@ -72,7 +72,6 @@ func IteratorTestKey(t *testing.T, iterator common.Iterator, keyWant []byte, err
 
 func IteratorTestVal(t *testing.T, iterator common.Iterator, valWant []byte, errWant bool) {
 	t.Helper()
-	t.Helper()
 	valGot, err := iterator.Value(), iterator.Error()
 	require.Equal(t, valWant, valGot)
 	if errWant {
