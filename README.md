@@ -17,11 +17,13 @@ This is a LevelDB clone that seeks to implement ideas from LevelDB including
     - Design and implementation completed
     - Flushing memtable to disk as SSTables completed
     - Get and Put ops completed
-    - TODO: Delete and RangeScan
+    - Delete and RangeScan completed
 - **LSM Trees/Levelled Compaction**:
-    - To start
+    - completed
+- **Bloom Filters**:
+    - to start!
 
 
 ## Misc
 
-- Take a day to refactor once completed
+- Take a day to refactor once completed, taken some liberties in terms of cleanliness [:(] to get the Levelled Compaction working!
