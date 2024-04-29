@@ -31,7 +31,7 @@ func newDBEntry(key, val []byte) *DBEntry {
 }
 
 func (db *MemDB) Get(key []byte) (val []byte, err error) {
-	entry, _, err := db.getDBEntry(key)
+	entry, _, err := db.get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (db *MemDB) Has(key []byte) (ret bool, err error) {
 }
 
 func (db *MemDB) Put(key, val []byte) error {
-	entry, _, err := db.getDBEntry(key)
+	entry, _, err := db.get(key)
 	if err != nil {
 		if errors.Is(err, common.ErrKeyDoesNotExist) {
 			dbEntry := newDBEntry(key, val)
@@ -69,7 +69,7 @@ func (db *MemDB) Put(key, val []byte) error {
 }
 
 func (db *MemDB) Delete(key []byte) error {
-	_, i, err := db.getDBEntry(key)
+	_, i, err := db.get(key)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (db *MemDB) RangeScan(start, limit []byte) (common.Iterator, error) {
 	return iter, nil
 }
 
-func (db *MemDB) getDBEntry(key []byte) (entry *DBEntry, idx int, err error) {
+func (db *MemDB) get(key []byte) (entry *DBEntry, idx int, err error) {
 	for i, entry := range db.entries {
 		if bytes.Equal(key, entry.key) {
 			return entry, i, nil
